@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Passbook — Fund Transfer Ledger</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1c1a16;--ink-soft:#5b5648;--paper:#f7f3ea;--paper-raised:#fffdf8;
+  --rule:#ddd5c2;--rule-strong:#bfb39a;
+  --rust:#a8512c;--rust-deep:#7a3a1f;--rust-pale:#f3e2d6;
+  --forest:#1f6b4a;--forest-deep:#134a33;--forest-pale:#dfeee3;
+  --gold:#b8902c;--gold-pale:#f5ecd5;
+  --navy:#16243a;--navy-pale:#e8ecf2;
+  --font-display:'Fraunces',serif;--font-mono:'IBM Plex Mono',monospace;--font-sans:'Inter',system-ui,sans-serif;
+  --radius:3px;
+}
+body{font-family:var(--font-sans);background:var(--paper);color:var(--ink);font-size:14px;line-height:1.5;min-height:100vh}
+
+/* ═══ HEADER ═══ */
+.masthead{background:var(--navy);color:#f5f1e6;padding:22px 32px 18px;border-bottom:4px double #3a4a63}
+.masthead-row{display:flex;align-items:baseline;justify-content:space-between;max-width:1180px;margin:0 auto;flex-wrap:wrap;gap:12px}
+.masthead-title{font-family:var(--font-display);font-weight:600;font-size:26px;letter-spacing:.2px}
+.masthead-title em{font-style:italic;color:#c9b98a;font-weight:400}
+.masthead-sub{font-family:var(--font-mono);font-size:11px;color:#9aa6b8;letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+.masthead-actions{display:flex;gap:8px}
+.masthead-actions button{background:transparent;border:1px solid #4a5a73;color:#dfe4ec;padding:7px 14px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-family:var(--font-mono);letter-spacing:.3px}
+.masthead-actions button:hover{background:#22324a;border-color:#5d6f8a}
+.masthead-actions button.primary{background:var(--rust);border-color:var(--rust);color:#fff5ee}
+.masthead-actions button.primary:hover{background:#92451f}
+
+/* ═══ TABS ═══ */
+.ledger-tabs{background:var(--paper-raised);border-bottom:1px solid var(--rule-strong);display:flex;padding:0 32px;max-width:1180px;margin:0 auto;gap:2px;overflow-x:auto}
+.ltab{padding:13px 18px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px;letter-spacing:.4px;color:var(--ink-soft);border-bottom:3px solid transparent;white-space:nowrap;text-transform:uppercase}
+.ltab.active{color:var(--rust-deep);border-bottom-color:var(--rust)}
+.ltab:hover:not(.active){color:var(--ink);background:#f1ead9}
+
+/* ═══ LAYOUT ═══ */
+.page{display:none;padding:28px 32px 60px;max-width:1180px;margin:0 auto}
+.page.active{display:block}
+.section-label{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--rule)}
+
+/* ═══ LEDGER CARDS (summary stat blocks) ═══ */
+.ledger-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule-strong);margin-bottom:28px}
+.lcard{background:var(--paper-raised);padding:16px 18px}
+.lcard-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
+.lcard-value{font-family:var(--font-display);font-size:26px;font-weight:600;letter-spacing:-.3px}
+.lcard-sub{font-family:var(--font-mono);font-size:10px;color:var(--ink-soft);margin-top:4px}
+.lcard.out .lcard-value{color:var(--rust-deep)}
+.lcard.in .lcard-value{color:var(--forest-deep)}
+.lcard.net .lcard-value{color:var(--navy)}
+
+/* ═══ PASSBOOK TABLE ═══ */
+.passbook{border:1px solid var(--rule-strong);background:var(--paper-raised);overflow-x:auto}
+table{width:100%;min-width:980px;border-collapse:collapse;font-size:12.5px}
+thead th{background:#efe7d5;padding:9px 11px;text-align:left;font-family:var(--font-mono);font-weight:500;color:var(--ink-soft);font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid var(--rule-strong)}
+tbody tr{border-bottom:1px solid var(--rule)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#f1ead9}
+td{padding:8px 11px;vertical-align:middle}
+.flag-rail{width:4px;padding:0!important}
+.flag-rail.out-rail{background:var(--rust)}
+.flag-rail.in-rail{background:var(--forest)}
+.amt{font-family:var(--font-mono);font-weight:500;font-size:12px}
+.amt.out{color:var(--rust-deep)}
+.amt.in{color:var(--forest-deep)}
+.stamp{display:inline-block;padding:2px 8px;border-radius:20px;font-family:var(--font-mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;border:1px solid}
+.stamp.out{background:var(--rust-pale);color:var(--rust-deep);border-color:#e0bba2}
+.stamp.in{background:var(--forest-pale);color:var(--forest-deep);border-color:#b9d9c4}
+.ccy-tag{display:inline-block;padding:2px 7px;border-radius:var(--radius);font-family:var(--font-mono);font-size:10px;font-weight:600;background:var(--gold-pale);color:#7a5c1a;letter-spacing:.3px}
+.cat-tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-family:var(--font-sans);font-weight:500;background:var(--navy-pale);color:var(--navy)}
+.empty-row{text-align:center;padding:50px 24px;color:var(--ink-soft);font-family:var(--font-mono);font-size:12px}
+
+/* ═══ FILTERS ═══ */
+.filter-strip{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+.filter-strip select,.filter-strip input[type=text],.filter-strip input[type=month]{background:var(--paper-raised);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--font-sans);color:var(--ink);height:32px}
+.filter-strip select:focus,.filter-strip input:focus{outline:none;border-color:var(--rust)}
+.btn{background:var(--navy);color:#f5f1e6;border:none;padding:7px 15px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-family:var(--font-sans);font-weight:500}
+.btn:hover{background:#22324a}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--rule-strong)}
+.btn.ghost:hover{background:#efe7d5}
+.btn.sm{padding:4px 10px;font-size:11px}
+.btn.danger{background:var(--rust)}
+
+/* ═══ MODAL ═══ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(28,26,22,.55);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--paper-raised);border-radius:6px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto;border:1px solid var(--rule-strong)}
+.modal-header{padding:18px 22px 14px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:var(--font-display);font-size:17px;font-weight:600}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:22px;line-height:1;padding:2px}
+.modal-body{padding:20px 22px}
+.modal-footer{padding:14px 22px;border-top:1px solid var(--rule);display:flex;justify-content:flex-end;gap:8px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:13px}
+.form-row.full{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.field label{display:block;font-family:var(--font-mono);font-size:10px;font-weight:500;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;background:var(--paper-raised);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:7px 10px;font-size:13px;color:var(--ink);font-family:var(--font-sans)}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--rust)}
+.field textarea{height:58px;resize:vertical}
+.field .hint{font-size:10px;color:var(--ink-soft);margin-top:3px;font-family:var(--font-mono)}
+.field .rate-preview{font-size:12px;color:var(--forest-deep);font-weight:600;margin-top:4px;font-family:var(--font-mono)}
+.dir-toggle{display:flex;border:1px solid var(--rule-strong);border-radius:var(--radius);overflow:hidden;width:fit-content}
+.dir-toggle button{padding:7px 22px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--ink-soft);font-family:var(--font-sans)}
+.dir-toggle button.active.out{background:var(--rust-pale);color:var(--rust-deep)}
+.dir-toggle button.active.in{background:var(--forest-pale);color:var(--forest-deep)}
+
+/* ═══ FX RATE CARDS ═══ */
+.rate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule-strong);margin-bottom:26px}
+.rate-card{background:var(--paper-raised);padding:15px 17px}
+.rate-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.rate-ccy{font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--navy)}
+.rate-val{font-family:var(--font-mono);font-size:12.5px;font-weight:500;margin-bottom:2px}
+.rate-inv{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft)}
+.rate-date{font-family:var(--font-mono);font-size:9.5px;color:var(--ink-soft);margin-top:7px;border-top:1px solid var(--rule);padding-top:6px}
+.rate-input-row{display:flex;align-items:center;gap:7px;margin-top:9px}
+.rate-input-row input{flex:1;padding:5px 8px;border:1px solid var(--rule-strong);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--navy);background:var(--navy-pale);font-family:var(--font-mono)}
+
+/* ═══ SUMMARY GRID ═══ */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.sum-block{background:var(--paper-raised);border:1px solid var(--rule-strong)}
+.sum-block-title{padding:11px 15px;font-family:var(--font-mono);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);background:#efe7d5;border-bottom:1px solid var(--rule-strong)}
+.sum-table td{padding:7px 15px;font-size:12.5px;border-bottom:1px solid var(--rule)}
+.sum-table tr:last-child td{border-bottom:none}
+.sum-table .sum-label{color:var(--ink-soft)}
+.sum-table .sum-amount{font-weight:600;font-family:var(--font-mono);text-align:right}
+.sum-total td{font-weight:700;background:#efe7d5}
+.month-bar{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule)}
+.month-bar:last-child{border-bottom:none}
+.month-label{width:54px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
+.month-track{flex:1;height:6px;background:var(--rule);border-radius:2px;overflow:hidden}
+.month-fill{height:100%;background:var(--rust)}
+.month-amount{width:84px;text-align:right;font-family:var(--font-mono);font-size:10.5px;font-weight:600;color:var(--rust-deep);flex-shrink:0}
+
+/* ═══ ACCOUNTS / PEOPLE ═══ */
+.entity-list{display:flex;flex-direction:column;gap:1px;background:var(--rule);border:1px solid var(--rule-strong)}
+.entity-item{background:var(--paper-raised);padding:13px 16px;display:flex;align-items:center;justify-content:space-between}
+.entity-info{display:flex;align-items:center;gap:11px}
+.entity-flag{font-size:19px;width:28px;text-align:center}
+.entity-name{font-weight:600;font-size:13.5px;font-family:var(--font-sans)}
+.entity-sub{font-size:11px;color:var(--ink-soft);font-family:var(--font-mono)}
+.entity-tag{font-size:11px;font-weight:600;color:var(--navy);background:var(--navy-pale);padding:2px 8px;border-radius:var(--radius);font-family:var(--font-mono)}
+
+@media(max-width:680px){
+  .masthead{padding:16px 18px}.page{padding:16px}.form-row{grid-template-columns:1fr}
+  .summary-grid{grid-template-columns:1fr}.ledger-cards{grid-template-columns:1fr 1fr}
+  .ledger-tabs{padding:0 18px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN GATE ═══ -->
+<div class="modal-overlay open" id="login-overlay" style="z-index:999;background:rgba(28,26,22,.92)">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      <div class="modal-title">🔒 Passbook</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Access code</label>
+        <input type="password" id="login-pass" placeholder="Enter passcode" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="login-error" style="color:var(--rust-deep);font-size:12px;margin-top:8px;font-family:var(--font-mono)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="doLogin()" style="width:100%">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<div class="masthead">
+  <div class="masthead-row">
+    <div>
+      <div class="masthead-title">Passbook <em>— fund transfer ledger</em></div>
+      <div class="masthead-sub">SGD base · Singapore → Philippines · Türkiye · Canada · Hungary</div>
+      <div class="masthead-sub" id="sync-status" style="color:#9aa6b8">⏳ Connecting…</div>
+    </div>
+    <div class="masthead-actions">
+      <button onclick="openAddTx()">+ New entry</button>
+      <button class="primary" onclick="exportCSV()">Export CSV</button>
+      <button onclick="doLogout()">Lock</button>
+    </div>
+  </div>
+</div>
+
+<div class="ledger-tabs">
+  <div class="ltab active" onclick="showTab('dashboard')">Overview</div>
+  <div class="ltab" onclick="showTab('transfers')">Ledger</div>
+  <div class="ltab" onclick="showTab('fx')">FX rates</div>
+  <div class="ltab" onclick="showTab('summary')">Summary</div>
+  <div class="ltab" onclick="showTab('accounts')">Accounts &amp; people</div>
+</div>
+
+<div id="page-dashboard" class="page active">
+  <div class="ledger-cards" id="dash-cards"></div>
+  <div class="section-label">Recent entries</div>
+  <div class="passbook"><table id="dash-table">
+    <thead><tr>
+      <th></th><th>Date</th><th>Dir</th><th>Recipient / sender</th>
+      <th>Currency</th><th style="text-align:right">Foreign amt</th><th style="text-align:right">SGD equiv.</th><th>Category</th>
+    </tr></thead>
+    <tbody id="dash-tbody"></tbody>
+  </table></div>
+</div>
+
+<div id="page-transfers" class="page">
+  <div class="filter-strip">
+    <input type="text" id="f-search" placeholder="Search name, bank, remark…" style="width:200px" oninput="renderTransfers()">
+    <select id="f-dir" onchange="renderTransfers()">
+      <option value="">All directions</option>
+      <option value="OUT">Sent (out)</option>
+      <option value="IN">Received (in)</option>
+    </select>
+    <select id="f-ccy" onchange="renderTransfers()">
+      <option value="">All currencies</option>
+      <option>PHP</option><option>CAD</option><option>TRY</option>
+      <option>EUR</option><option>USD</option><option>HUF</option><option>SGD</option>
+    </select>
+    <select id="f-cat" onchange="renderTransfers()">
+      <option value="">All categories</option>
+      <option>Allowance</option><option>School</option><option>Insurance</option>
+      <option>Property</option><option>Loan</option><option>Gift</option>
+      <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
+      <option>Repayment</option><option>Business</option><option>Salary</option><option>Other</option>
+    </select>
+    <input type="month" id="f-month" onchange="renderTransfers()">
+    <button class="btn ghost sm" onclick="clearFilters()">Clear</button>
+    <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft)" id="result-count"></span>
+  </div>
+  <div class="passbook"><table>
+    <thead><tr>
+      <th></th><th>Date</th><th>Dir</th><th>Name</th><th>From</th><th>To</th>
+      <th>Ccy</th><th style="text-align:right">Foreign amt</th>
+      <th style="text-align:right">Rate (1SGD=)</th>
+      <th style="text-align:right">SGD equiv</th><th>Fee</th>
+      <th>Category</th><th>Remark</th><th style="position:sticky;right:0;background:#efe7d5;box-shadow:-4px 0 4px -2px rgba(0,0,0,.08)"></th>
+    </tr></thead>
+    <tbody id="tx-tbody"></tbody>
+  </table></div>
+</div>
+
+<div id="page-fx" class="page">
+  <div class="section-label">Current rates — 1 SGD = X foreign</div>
+  <div class="rate-grid" id="rate-grid"></div>
+  <div class="section-label">Rate history</div>
+  <div class="passbook"><table>
+    <thead><tr>
+      <th>Date</th><th>Currency</th><th>1 SGD =</th><th>1 foreign =</th>
+      <th>Platform</th><th>Note</th><th></th>
+    </tr></thead>
+    <tbody id="rate-history-tbody"></tbody>
+  </table></div>
+</div>
+
+<div id="page-summary" class="page">
+  <div class="summary-grid">
+    <div>
+      <div class="sum-block" style="margin-bottom:18px">
+        <div class="sum-block-title">By recipient — SGD out</div>
+        <table class="sum-table" id="sum-by-person" style="width:100%"></table>
+      </div>
+      <div class="sum-block">
+        <div class="sum-block-title">By category — SGD out</div>
+        <table class="sum-table" id="sum-by-cat" style="width:100%"></table>
+      </div>
+    </div>
+    <div>
+      <div class="sum-block" style="margin-bottom:18px">
+        <div class="sum-block-title">Monthly SGD outflow (last 12)</div>
+        <div id="monthly-bars" style="padding:10px 15px"></div>
+      </div>
+      <div class="sum-block">
+        <div class="sum-block-title">By currency — actual amounts sent</div>
+        <table class="sum-table" id="sum-by-ccy" style="width:100%"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="page-accounts" class="page">
+  <div class="section-label">My accounts</div>
+  <div class="entity-list" id="acc-list" style="margin-bottom:30px"></div>
+  <div class="section-label">Recipients reference</div>
+  <div class="entity-list" id="ppl-list"></div>
+</div>
+
+<div class="modal-overlay" id="modal-tx">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-tx-title">New entry</div>
+      <button class="modal-close" onclick="closeModal('modal-tx')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row full" style="margin-bottom:14px">
+        <div class="field">
+          <label>Direction</label>
+          <div class="dir-toggle">
+            <button id="btn-out" class="active out" onclick="setDir('OUT')">↑ Sent (out)</button>
+            <button id="btn-in" onclick="setDir('IN')">↓ Received (in)</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="f-category">
+            <option>Allowance</option><option>School</option><option>Insurance</option>
+            <option>Property</option><option>Loan</option><option>Gift</option>
+            <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
+            <option>Repayment</option><option>Business</option><option>Salary</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label id="lbl-name">Recipient name</label>
+          <input type="text" id="f-name" list="people-list" placeholder="e.g. Mina, Zerrin…">
+          <datalist id="people-list"></datalist>
+        </div>
+        <div class="field">
+          <label>Country / location</label>
+          <select id="f-country" onchange="updateCountryDefaults()">
+            <option value="">Select…</option>
+            <option value="PH">Philippines</option>
+            <option value="TR">Türkiye</option>
+            <option value="CA">Canada</option>
+            <option value="HU">Hungary</option>
+            <option value="SG">Singapore (self)</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label id="lbl-from-acct">From account</label>
+          <input type="text" id="f-from-acct" list="accts-list" placeholder="e.g. DBS, BPI…">
+          <datalist id="accts-list"></datalist>
+        </div>
+        <div class="field">
+          <label id="lbl-to-acct">To account / bank</label>
+          <input type="text" id="f-to-acct" placeholder="e.g. BDO, Gcash, Akbank…">
+        </div>
+      </div>
+      <div class="form-row three">
+        <div class="field">
+          <label>Currency</label>
+          <select id="f-ccy-tx" onchange="updateRatePreview()">
+            <option>PHP</option><option>CAD</option><option>TRY</option>
+            <option>EUR</option><option>USD</option><option>HUF</option><option>SGD</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Amount (foreign)</label>
+          <input type="number" id="f-foreign-amt" placeholder="0.00" oninput="updateRatePreview()">
+        </div>
+        <div class="field">
+          <label>Fee (SGD)</label>
+          <input type="number" id="f-fee" placeholder="0" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Rate used — 1 SGD = X <span id="rate-ccy-label">PHP</span></label>
+          <input type="number" id="f-rate" placeholder="auto from FX table" step="0.0001" oninput="updateRatePreview()">
+          <div class="hint">Leave blank to use latest FX rate</div>
+          <div class="rate-preview" id="rate-preview"></div>
+        </div>
+        <div class="field">
+          <label>Platform</label>
+          <select id="f-platform">
+            <option>Wise</option><option>DBS</option><option>OCBC</option>
+            <option>BPI</option><option>BTCTurk/USDT</option><option>Cash</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="field">
+          <label>Remark</label>
+          <textarea id="f-remark" placeholder="e.g. Monthly allowance Apr 2026, school bus, tires balance…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal('modal-tx')">Cancel</button>
+      <button class="btn" onclick="saveTx()">Save entry</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORE_KEY = 'passbook_v1';
+let db = { transfers: [], rates: [] };
+
+// ===== GITHUB SYNC CONFIG (same Worker as EMELCO, separate data file) =====
+const PROXY_URL = 'https://emelco-proxy.rchbas.workers.dev';
+const PROXY_SECRET = 'emelco1254rch';
+const GH_FILE = 'passbook_data.json';
+const GH_API = `${PROXY_URL}/contents/${GH_FILE}`;
+let ghSha = null;
+let isSyncing = false;
+
+function setSyncStatus(msg, color){
+  const el = document.getElementById('sync-status');
+  if(el){ el.textContent = msg; el.style.color = color || '#9aa6b8'; }
+}
+
+// Safe UTF-8 base64 decode (handles ₱ and other multi-byte chars without corruption)
+function safeAtobUtf8(b64){
+  const binary = atob(b64.replace(/\n/g,''));
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+// ===== LOGIN GATE =====
+function doLogin(){
+  const pass = document.getElementById('login-pass').value.trim();
+  document.getElementById('login-error').textContent = 'Checking…';
+  fetch(PROXY_URL + '/check-passbook-access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: pass })
+  }).then(r => r.json()).then(data => {
+    if(data.ok){
+      sessionStorage.setItem('passbook_unlocked', '1');
+      document.getElementById('login-overlay').classList.remove('open');
+      document.getElementById('login-error').textContent = '';
+      loadData();
+    } else {
+      document.getElementById('login-error').textContent = 'Incorrect access code.';
+      document.getElementById('login-pass').value = '';
+    }
+  }).catch(e => {
+    document.getElementById('login-error').textContent = 'Connection error — try again.';
+  });
+}
+function doLogout(){
+  if(!confirm('Lock Passbook?')) return;
+  sessionStorage.removeItem('passbook_unlocked');
+  document.getElementById('login-overlay').classList.add('open');
+  document.getElementById('login-pass').value = '';
+}
+function initLoginGate(){
+  if(sessionStorage.getItem('passbook_unlocked') === '1'){
+    document.getElementById('login-overlay').classList.remove('open');
+    loadData();
+  } else {
+    document.getElementById('login-overlay').classList.add('open');
+  }
+}
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+
+// Fetch the SHA only (lightweight, needed before saving)
+async function fetchGhSha(){
+  try{
+    const res = await fetch(GH_API+'?t='+Date.now(), {
+      headers:{ 'X-Proxy-Auth': PROXY_SECRET, Accept:'application/vnd.github.v3+json' }
+    });
+    if(res.ok){ const meta = await res.json(); ghSha = meta.sha; return true; }
+  }catch(e){ console.warn('fetchGhSha failed:', e); }
+  return false;
+}
+
+// Load from GitHub first, fallback to localStorage, fallback to seed data
+async function loadData(){
+  setSyncStatus('⏳ Connecting to cloud…');
+  try{
+    const metaRes = await fetch(GH_API+'?t='+Date.now(), {
+      headers:{ 'X-Proxy-Auth': PROXY_SECRET, Accept:'application/vnd.github.v3+json' }
+    });
+    if(metaRes.ok){
+      const meta = await metaRes.json();
+      ghSha = meta.sha;
+      const text = safeAtobUtf8(meta.content);
+      const parsed = JSON.parse(text);
+      db = parsed && parsed.transfers ? parsed : db;
+      localStorage.setItem(STORE_KEY, JSON.stringify(db));
+      setSyncStatus('✓ Synced', 'var(--forest-deep)');
+    } else if(metaRes.status === 404){
+      // File doesn't exist yet on GitHub — use local/seed, then push to create it
+      loadLocalOrSeed();
+      setSyncStatus('⏳ Creating cloud file…');
+      await save();
+    } else {
+      loadLocalOrSeed();
+      setSyncStatus('⚠ Cloud unavailable — using local copy', 'var(--rust-deep)');
+    }
+  }catch(e){
+    console.warn('loadData failed:', e);
+    loadLocalOrSeed();
+    setSyncStatus('⚠ Offline — using local copy', 'var(--rust-deep)');
+  }
+  renderDashboard();
+}
+
+function loadLocalOrSeed(){
+  try{ const s = localStorage.getItem(STORE_KEY); if(s) db = JSON.parse(s); }catch(e){}
+  if(!db.transfers || !db.transfers.length){
+    db.transfers = SEED_TRANSFERS.map(t=>({...t,id:uid()}));
+  }
+  if(!db.rates || !db.rates.length){
+    db.rates = SEED_RATES.map(r=>({...r,id:uid()}));
+  }
+}
+
+// Save to localStorage immediately (fast), then push to GitHub (sync)
+async function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){}
+  if(isSyncing) return;
+  isSyncing = true;
+  setSyncStatus('⏳ Saving…');
+  try{
+    if(!ghSha) await fetchGhSha();
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(db))));
+    const body = {
+      message: 'Passbook update ' + new Date().toISOString(),
+      content,
+      ...(ghSha ? { sha: ghSha } : {})
+    };
+    const res = await fetch(GH_API, {
+      method: 'PUT',
+      headers: { 'X-Proxy-Auth': PROXY_SECRET, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if(res.ok){
+      const data = await res.json();
+      ghSha = data.content ? data.content.sha : ghSha;
+      setSyncStatus('✓ Synced', 'var(--forest-deep)');
+    } else {
+      setSyncStatus('⚠ Save failed — saved locally only', 'var(--rust-deep)');
+    }
+  }catch(e){
+    console.warn('save failed:', e);
+    setSyncStatus('⚠ Offline — saved locally only', 'var(--rust-deep)');
+  }
+  isSyncing = false;
+}
+
+initLoginGate();
+
+
+const SEED_TRANSFERS = [{"date":"2022-09-23","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"DBS","toAcct":"DBS","ccy":"PHP","foreignAmt":96299.62,"rate":41.3,"fee":0,"internal":"N","platform":"DBS","remark":"DBS Loan"},{"date":"2022-09-30","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":40.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Oct 2022"},{"date":"2022-10-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":37722.72,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G8 2/5"},{"date":"2022-11-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Nov 2022"},{"date":"2022-12-01","dir":"OUT","name":"Mina","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":43500.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Dec 2022 - Zerrin insurance"},{"date":"2022-12-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":37722.72,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G8 3/5"},{"date":"2023-01-07","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Jan 2023"},{"date":"2023-01-15","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":80000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"barrow for a day"},{"date":"2023-01-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru jan 2023"},{"date":"2023-01-24","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":130000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"0.8 1st Feb"},{"date":"2023-02-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":37722.72,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G8 4/5"},{"date":"2023-02-08","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Feb 2023"},{"date":"2023-02-15","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Feb 2023"},{"date":"2023-02-21","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":201000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"for 7dx0.6520 to make 850k thank you"},{"date":"2023-02-28","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance March 2023"},{"date":"2023-03-01","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BDO","ccy":"PHP","foreignAmt":403861.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"To Rhoda"},{"date":"2023-03-20","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Mar 2023"},{"date":"2023-03-28","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BDO","ccy":"PHP","foreignAmt":490000.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"To Rhoda"},{"date":"2023-03-30","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BDO","ccy":"PHP","foreignAmt":351655.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"To Rhoda"},{"date":"2023-04-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Apr 2023"},{"date":"2023-04-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":37722.72,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G8 5/5"},{"date":"2023-04-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Apr 2023"},{"date":"2023-04-28","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":500000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"to Rhoda"},{"date":"2023-05-03","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance May 2023"},{"date":"2023-05-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru May 2023"},{"date":"2023-05-26","dir":"OUT","name":"Michelle","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":28000.0,"rate":41.0,"fee":10.0,"internal":"N","platform":"BPI","remark":"To XXXX-XXX-861 - Michelle For USD 500 return in Peso"},{"date":"2023-06-05","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance June 2023"},{"date":"2023-06-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru June 2023"},{"date":"2023-07-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":40200.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G9 1/5"},{"date":"2023-07-03","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":8730.73,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Jul 2023"},{"date":"2023-07-03","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Jul 2023"},{"date":"2023-07-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru July 2023"},{"date":"2023-07-17","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BDO","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"To Rhoda"},{"date":"2023-07-31","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Montly Allowance Aug 2023"},{"date":"2023-07-31","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BDO","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"To Rhoda"},{"date":"2023-08-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Aug 2023"},{"date":"2023-08-25","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2000.74,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Aug 2023"},{"date":"2023-08-25","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BDO","ccy":"PHP","foreignAmt":86594.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"To Rhoda"},{"date":"2023-09-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":16000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School bus deposit+one month Sep 2023"},{"date":"2023-09-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Sep 2023"},{"date":"2023-09-04","dir":"OUT","name":"Zerrin","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":60000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"40K school + 20K"},{"date":"2023-09-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Sept 2023"},{"date":"2023-09-22","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2025.74,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Sep 2023"},{"date":"2023-10-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Oct 2023"},{"date":"2023-10-02","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":35000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"No Remark"},{"date":"2023-10-02","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":500000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"with Balance Transfer 13k sgd"},{"date":"2023-10-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Oct 2023"},{"date":"2023-10-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":43109.5,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G9 2/5"},{"date":"2023-10-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Oct 2023"},{"date":"2023-10-24","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":130000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"to Rhoda for truck payables"},{"date":"2023-10-27","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2025.6,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Dec 2023"},{"date":"2023-11-01","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":250000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"to Rhoda CC payments"},{"date":"2023-11-02","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Nov 2023"},{"date":"2023-11-09","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":30000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"to Rhoda RCBC CC"},{"date":"2023-11-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Nov 2023"},{"date":"2023-11-21","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2044.44,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Nov 2023"},{"date":"2023-11-23","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Nov 2023"},{"date":"2023-11-23","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":1000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Test"},{"date":"2023-11-28","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":100000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"to Rhoda Payments"},{"date":"2023-12-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Dec 2023"},{"date":"2023-12-04","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":260000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Rudy and CC pays"},{"date":"2023-12-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Dec 2023"},{"date":"2023-12-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":43109.5,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G9 3/5"},{"date":"2023-12-08","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":100000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Holland Park RCBC Loan 77k"},{"date":"2023-12-15","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":150000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Rudy Pay"},{"date":"2023-12-15","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2636.34,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Unit 20-O Condo Due RTP common"},{"date":"2023-12-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Dec 2023"},{"date":"2023-12-19","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Budget"},{"date":"2023-12-19","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"DBS","toAcct":"DBS","ccy":"PHP","foreignAmt":64800.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"DBS Loan min pay"},{"date":"2023-12-22","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":300000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"CC Pay help with 13th month"},{"date":"2023-12-31","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":300000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"For payables with 13th month"},{"date":"2024-01-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Jan 2024"},{"date":"2024-01-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Jan 2024"},{"date":"2024-01-05","dir":"OUT","name":"Zerrin","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"RCBC","ccy":"PHP","foreignAmt":50000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"For Zerrin School 43,109.50"},{"date":"2024-01-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Jan 2024"},{"date":"2024-01-18","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2013.95,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Jan 2024 Condo Due"},{"date":"2024-01-30","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":440000.0,"rate":41.4,"fee":0,"internal":"N","platform":"BPI","remark":"11k out of 85k = 74k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-01-31","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":398067.63,"rate":41.2,"fee":0,"internal":"N","platform":"BPI","remark":"21k out of 85k = 64k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-01-31","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":43319.79,"rate":41.2,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G9 4/5"},{"date":"2024-02-01","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":460000.0,"rate":41.4,"fee":0,"internal":"N","platform":"BPI","remark":"32k out of 85k = 53k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-02-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.4,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Feb 2024"},{"date":"2024-02-02","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":450000.0,"rate":41.4,"fee":0,"internal":"N","platform":"BPI","remark":"43k out of 85k = 42k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-02-03","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":450000.0,"rate":41.4,"fee":0,"internal":"N","platform":"BPI","remark":"54k out of 85k = 31k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-02-04","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":447826.09,"rate":41.2,"fee":0,"internal":"N","platform":"BPI","remark":"65k out of 85k = 20k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-02-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8039.02,"rate":41.2,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Feb 2024"},{"date":"2024-02-05","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":450000.0,"rate":41.4,"fee":0,"internal":"N","platform":"DBS","remark":"75k out of 85k = 10k - DBS 25K+OCBC 30K + bonus"},{"date":"2024-02-06","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":450000.0,"rate":41.4,"fee":0,"internal":"N","platform":"DBS","remark":"85k out of 85k = 0 - DBS 25K+OCBC 30K + bonus"},{"date":"2024-02-09","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"RCBC","ccy":"PHP","foreignAmt":5000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"For RCBC min balance"},{"date":"2024-02-11","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":55000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"For Title"},{"date":"2024-02-14","dir":"OUT","name":"Heart","country":"PH","category":"Gift","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":2000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Happy Birth Day Hearth"},{"date":"2024-02-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Feb 2024"},{"date":"2024-02-22","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2023.45,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Feb 2024"},{"date":"2024-02-22","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2701.9,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Repainting and waterproofing first bill 20-O"},{"date":"2024-03-01","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":150000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"My cc and other"},{"date":"2024-03-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"monthly allowance Mar 2024"},{"date":"2024-03-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Mar 2024"},{"date":"2024-03-08","dir":"OUT","name":"Rhoda","country":"PH","category":"RFID/Fees","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":42.3998,"fee":10.0,"internal":"N","platform":"BPI","remark":"for gcash autosweep rfid"},{"date":"2024-03-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Mar 2024"},{"date":"2024-03-20","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":100000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"For Budget"},{"date":"2024-03-27","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":4726.82,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Repainting, Waterproofing (2nd Billing) - P2701.9, Condo Dues - P2,000,  Water -P24.92 - Mar' 24"},{"date":"2024-04-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Apr 2024"},{"date":"2024-04-02","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":165000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"For Overall Help"},{"date":"2024-04-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Apr 2024"},{"date":"2024-04-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":43109.5,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G9 5/5"},{"date":"2024-04-15","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":48000.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"for loan payment"},{"date":"2024-04-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Apr 2024"},{"date":"2024-04-22","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":3482.74,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Apr 2024 condo due and fire insurance"},{"date":"2024-05-03","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":120000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"For payables"},{"date":"2024-05-03","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"monthly allowance May 2024"},{"date":"2024-05-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":41.0,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus May 2024"},{"date":"2024-05-07","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":60000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"for loan payment"},{"date":"2024-05-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru May 2024"},{"date":"2024-05-20","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":20000.0,"rate":41.0,"fee":0,"internal":"N","platform":"DBS","remark":"Rudy interest pay"},{"date":"2024-05-20","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Rudy interest pay"},{"date":"2024-05-20","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"RCBC","toAcct":"BPI","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"RCBC","remark":"Rudy interest pay"},{"date":"2024-05-30","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly May 2024 Condo Dues - P2,000"},{"date":"2024-06-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":41.0,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance June 2024"},{"date":"2024-06-07","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":40000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Budger help"},{"date":"2024-06-08","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":60000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"CC Pay  to Rhoda"},{"date":"2024-06-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":42.5532,"fee":0,"internal":"N","platform":"BPI","remark":"Pru June 2024"},{"date":"2024-06-19","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2037.36,"rate":42.5532,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Montly June 2024 Condo Dues - P2,000"},{"date":"2024-06-25","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"RCBC","toAcct":"BPI","ccy":"PHP","foreignAmt":26290.0,"rate":42.5532,"fee":25.0,"internal":"N","platform":"RCBC","remark":"RCBC transfer"},{"date":"2024-06-27","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":40000.0,"rate":42.7954,"fee":0,"internal":"N","platform":"DBS","remark":"to Rhoda"},{"date":"2024-07-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":42.8541,"fee":25.0,"internal":"N","platform":"BPI","remark":"Montly Allowance July 2024"},{"date":"2024-07-03","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":100000.0,"rate":42.8541,"fee":0,"internal":"N","platform":"BPI","remark":"to Rhoda"},{"date":"2024-07-10","dir":"OUT","name":"Rhoda","country":"PH","category":"Investment","fromAcct":"BTCTurk","toAcct":"BPI","ccy":"PHP","foreignAmt":2100000.0,"rate":42.6658,"fee":1000.0,"internal":"N","platform":"BTCTurk","remark":"USDT sent 1,200,000 TL - 1USDT=58.3 php, 32.8 TL- 10 Tirad pass title"},{"date":"2024-07-12","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BTCTurk","toAcct":"BPI","ccy":"PHP","foreignAmt":1200000.0,"rate":42.6658,"fee":1000.0,"internal":"N","platform":"BTCTurk","remark":"USDT sent 700,000 - TL - 1USDT=58.3php, 33.2 TL- Twin lakes down pay 1m + field title expense 250k"},{"date":"2024-07-13","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":42.6658,"fee":0,"internal":"N","platform":"BPI","remark":"Pru July 2024"},{"date":"2024-07-26","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2021.37,"rate":42.6658,"fee":25.0,"internal":"N","platform":"BPI","remark":"Spacetaft Unit 20-O  July 2024"},{"date":"2024-08-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":65000.0,"rate":42.6658,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance 25k + Zerrin Hair Treatment 40k"},{"date":"2024-08-06","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":500000.0,"rate":43.0886,"fee":0,"internal":"N","platform":"BPI","remark":"with OCBC LOAN 28,400sgd for 5yrs pay 564sgd CC Pay for  to Rhoda"},{"date":"2024-08-07","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":490000.0,"rate":42.9719,"fee":0,"internal":"N","platform":"BPI","remark":"with OCBC LOAN 28,400sgd for 5yrs pay 564sgd CC Pay for  to Rhoda"},{"date":"2024-08-08","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":230000.0,"rate":42.924,"fee":0,"internal":"N","platform":"BPI","remark":"with OCBC LOAN 28,400sgd for 5yrs pay 564sgd CC Pay for  to Rhoda"},{"date":"2024-08-16","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2051.69,"rate":42.5288,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Aug 2024 Condo Due"},{"date":"2024-08-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":9994.26,"rate":42.5288,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Aug 2024"},{"date":"2024-08-30","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":42.5532,"fee":10.0,"internal":"N","platform":"Gcash","remark":"School Bus Sep 2024"},{"date":"2024-09-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":42.5044,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Sep 2024"},{"date":"2024-09-07","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":42.5532,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Deposit for 2024-2025"},{"date":"2024-09-15","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":48538.6,"rate":42.5532,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G10 1/5"},{"date":"2024-09-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":42.5532,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Sept 2024"},{"date":"2024-09-18","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2011.8,"rate":42.5532,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Sept 2024 Condo Due"},{"date":"2024-10-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":42.5532,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Oct 2024"},{"date":"2024-10-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":42.5532,"fee":10.0,"internal":"N","platform":"Gcash","remark":"School Bus Oct 2024"},{"date":"2024-10-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":43.1425,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Oct 2024"},{"date":"2024-10-16","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2036.55,"rate":43.1425,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Oct 2024 Condo Due"},{"date":"2024-11-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":45414.9,"rate":42.9516,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G10 2/5"},{"date":"2024-11-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":24770.21,"rate":42.9516,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Nov 2024"},{"date":"2024-11-02","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":200000.0,"rate":43.3501,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes payment 2/36"},{"date":"2024-11-08","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":43.3501,"fee":10.0,"internal":"N","platform":"Gcash","remark":"School Bus Nov 2024"},{"date":"2024-11-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":43.3501,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Nov 2024"},{"date":"2024-11-16","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2014.54,"rate":43.3501,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Nov 2024 Condo Due"},{"date":"2024-11-29","dir":"OUT","name":"Rhoda","country":"PH","category":"Investment","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":180000.0,"rate":43.3501,"fee":0,"internal":"N","platform":"BPI","remark":"for USDT 3k lu"},{"date":"2024-12-02","dir":"OUT","name":"Erkan","country":"TR","category":"Gift","fromAcct":"BPI","toAcct":"BTCTurk","ccy":"PHP","foreignAmt":175200.0,"rate":43.1425,"fee":150.0,"internal":"N","platform":"BPI","remark":"4 months Anneme 25000tl x 4=100,000=php 175,200"},{"date":"2024-12-02","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":4800.0,"rate":43.1425,"fee":0,"internal":"N","platform":"BPI","remark":"Left over from 180,000"},{"date":"2024-12-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":43.1425,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Dec 2024"},{"date":"2024-12-03","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":30000.0,"rate":42.1721,"fee":0,"internal":"N","platform":"BPI","remark":""},{"date":"2024-12-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":43.1425,"fee":10.0,"internal":"N","platform":"BPI","remark":"School Bus Dec 2024"},{"date":"2024-12-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":43.1425,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Dec 2024"},{"date":"2024-12-18","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":43.1425,"fee":0,"internal":"Y","platform":"DBS","remark":""},{"date":"2024-12-22","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":100.0,"rate":1.046135,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 100.00 - SGD 95.59 Sending To Ayish Trial"},{"date":"2024-12-23","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":20000.0,"rate":42.8392,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2024-12-25","dir":"OUT","name":"Zerrin","country":"PH","category":"Other","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":5000.0,"rate":43.1425,"fee":0,"internal":"N","platform":"Gcash","remark":"Zerrin Xmass gift send to Mina to gcash give to Zerrin"},{"date":"2024-12-27","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":10000.0,"rate":1.050364,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 10,000.00 - SGD 9,520.51  - Sent to Ayish in Canada"},{"date":"2024-12-27","dir":"IN","name":"Ayish","country":"PH","category":"Repayment","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":398745.11,"rate":42.8999,"fee":0,"internal":"Y","platform":"BPI","remark":"Return Form Ayish"},{"date":"2024-12-27","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":248594.21,"rate":42.8999,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes payment 4/36"},{"date":"2024-12-27","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2623.25,"rate":42.8999,"fee":25.0,"internal":"N","platform":"BPI","remark":"20-O Monthly Dec 2024 Condo Due"},{"date":"2024-12-30","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":51670.0,"rate":42.7625,"fee":0,"internal":"Y","platform":"BPI","remark":"Ruchan BPI CC Payment"},{"date":"2025-01-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25786.64,"rate":44.5,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Jan 2025"},{"date":"2025-01-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8251.72,"rate":44.5,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Jan 2025"},{"date":"2025-01-05","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":44993.6,"rate":43.1425,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G10 3/5"},{"date":"2025-01-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":42.7625,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Jan 2025"},{"date":"2025-01-22","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":2500.0,"rate":1.049331,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 2,500.00 -SGD 2,382.47   left 292,525"},{"date":"2025-01-22","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":500000.0,"rate":42.7625,"fee":0,"internal":"N","platform":"BPI","remark":"For CC"},{"date":"2025-01-23","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.7625,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-01-24","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":490000.0,"rate":42.8101,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-01-26","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49900.0,"rate":42.8212,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-01-26","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2018.38,"rate":42.8212,"fee":25.0,"internal":"N","platform":"BPI","remark":"spacetaft unit 20-O January 2025 monthly due"},{"date":"2025-01-27","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.8082,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-01-27","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.8082,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-01-27","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.8082,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-01-27","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":740000.0,"rate":42.8082,"fee":0,"internal":"N","platform":"BPI","remark":"TwinLakes payment 5/36 247k +  to Rhoda CC payment help"},{"date":"2025-02-13","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"Gcash","ccy":"PHP","foreignAmt":4000.0,"rate":42.8082,"fee":25.0,"internal":"Y","platform":"BPI","remark":"Sent to myself"},{"date":"2025-02-14","dir":"OUT","name":"Heart","country":"PH","category":"Gift","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":5000.0,"rate":42.7497,"fee":0,"internal":"N","platform":"BPI","remark":"Heart happy 18th  bday"},{"date":"2025-02-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":42.7497,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Feb 2025"},{"date":"2025-02-18","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":99796.14,"rate":42.71,"fee":0,"internal":"N","platform":"BPI","remark":"For MaryGrace  monthly"},{"date":"2025-02-18","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49814.04,"rate":42.71,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-02-18","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49903.64,"rate":42.71,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-02-18","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":42710.32,"rate":42.71,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-02-18","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8053.39,"rate":42.71,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Feb 2025"},{"date":"2025-02-21","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"OCBC","toAcct":"Akbank TR","ccy":"PHP","foreignAmt":862963.28,"rate":42.7972,"fee":855.944534794145,"internal":"Y","platform":"OCBC","remark":"Serdar a 15,000 dolar 543,000tl 24 ay geri odemeli $750 aylik"},{"date":"2025-02-22","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":50000.0,"rate":42.7972,"fee":0,"internal":"N","platform":"BPI","remark":"For Budget"},{"date":"2025-02-22","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.7972,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-02-26","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":25000.0,"rate":42.8302,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-02-26","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":42.8302,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Feb 2025"},{"date":"2025-02-26","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2040.26,"rate":42.8302,"fee":25.0,"internal":"N","platform":"BPI","remark":"spacetaft unit 20-O Feb 2025 monthly due"},{"date":"2025-03-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49918.68,"rate":42.8034,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49918.68,"rate":42.8034,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-03","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":45050.13,"rate":42.8034,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G10 4/5"},{"date":"2025-03-04","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":48972.98,"rate":42.6982,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-04","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":98044.01,"rate":42.6982,"fee":0,"internal":"N","platform":"BPI","remark":"To Rhoda Tuesday, Mar 04 2025; 08:25:26 AM"},{"date":"2025-03-04","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":50301.46,"rate":42.6982,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-04","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":50288.66,"rate":42.6982,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-04","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":50339.0,"rate":42.6982,"fee":0,"internal":"N","platform":"BPI","remark":"To Rhoda Tuesday, Mar 04 2025; 07:48:56 AM"},{"date":"2025-03-04","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25169.5,"rate":42.6982,"fee":25.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Mar 2025"},{"date":"2025-03-04","dir":"IN","name":"Rhoda","country":"PH","category":"Repayment","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":201279.15,"rate":42.6982,"fee":0,"internal":"Y","platform":"BPI","remark":"Paying back"},{"date":"2025-03-04","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8051.17,"rate":42.6982,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Mar 2025"},{"date":"2025-03-05","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":2500.0,"rate":1.067705,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 2,500.00 -SGD 2,341.470   left 292,525-100,116=192409"},{"date":"2025-03-12","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":100000.0,"rate":42.4268,"fee":0,"internal":"N","platform":"BPI","remark":"balik for budget"},{"date":"2025-03-17","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":9949.65,"rate":42.5344,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Mar 2025"},{"date":"2025-03-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":350887.77,"rate":42.5344,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":491242.88,"rate":42.5344,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-03-18","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":840000.0,"rate":42.4268,"fee":0,"internal":"N","platform":"BPI","remark":"to clear cc dept - from 20k ocbc loan"},{"date":"2025-03-19","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2024.22,"rate":42.7497,"fee":10.0,"internal":"N","platform":"BPI","remark":"spacetaft unit 20-O Mar 2025 monthly due"},{"date":"2025-03-22","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":130.0,"rate":1.065574,"fee":0,"internal":"N","platform":"DBS","remark":"For 530 N shoes gift CAD 130"},{"date":"2025-03-31","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":80000.0,"rate":42.4268,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes Manor 7/36"},{"date":"2025-04-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25543.99,"rate":43.35,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthtly allowance Apr 2025"},{"date":"2025-04-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8174.08,"rate":43.35,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Apr 2025"},{"date":"2025-04-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":75000.0,"rate":42.2119,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-04-03","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":2500.0,"rate":1.0508,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 2,500.00 -SGD 2,379.14   left 192,409 -100,428.03 = 91,981"},{"date":"2025-04-04","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":75000.0,"rate":42.2119,"fee":0,"internal":"Y","platform":"BPI","remark":"Sent to myself"},{"date":"2025-04-04","dir":"OUT","name":"Holland Park","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"Union Bank","ccy":"PHP","foreignAmt":22552.15,"rate":42.2119,"fee":10.0,"internal":"N","platform":"BPI","remark":"Holland Park Condo Dues C4-12R"},{"date":"2025-04-04","dir":"OUT","name":"Holland Park","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"Union Bank","ccy":"PHP","foreignAmt":23820.37,"rate":42.2119,"fee":10.0,"internal":"N","platform":"BPI","remark":"Holland Park Condo Dues C4-12S"},{"date":"2025-04-15","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.7077,"fee":0,"internal":"Y","platform":"BPI","remark":"Sent to myself"},{"date":"2025-04-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":41.0,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Apr 2025"},{"date":"2025-04-25","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":40003.38,"rate":42.303,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-04-25","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":9998.31,"rate":42.303,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-04-25","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2030.53,"rate":42.303,"fee":10.0,"internal":"N","platform":"BPI","remark":"spacetaft unit 20-O Apr 2025 monthly due"},{"date":"2025-04-29","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":80000.0,"rate":42.0504,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes Manor 8/36 Apr 2025"},{"date":"2025-05-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25624.03,"rate":43.1,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthtly allowance May 2025"},{"date":"2025-05-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8409.76,"rate":43.1,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus May 2025"},{"date":"2025-05-02","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49954.2,"rate":42.0486,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-05-02","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49947.9,"rate":42.0486,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-05-02","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":44991.71,"rate":42.0486,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G10 5/5"},{"date":"2025-05-03","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":85000.0,"rate":42.1692,"fee":0,"internal":"N","platform":"BPI","remark":"To payroll and things"},{"date":"2025-05-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.1692,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-05-12","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":2500.0,"rate":1.0508,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 2,500.00 -SGD 2,379.14   left php192,409 -php100,428.03 = php91,981 - php100,000 = +php8000"},{"date":"2025-05-19","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10054.41,"rate":42.2792,"fee":0,"internal":"N","platform":"BPI","remark":"Pru May 2025"},{"date":"2025-05-19","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49681.15,"rate":42.2792,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-05-21","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.604,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-05-28","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":3372.8,"rate":42.604,"fee":10.0,"internal":"N","platform":"BPI","remark":"spacetaft unit 20-O May 2025 monthly due"},{"date":"2025-05-29","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":80000.0,"rate":42.1692,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes Manor 9/36 MAy 2025"},{"date":"2025-05-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.1692,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-05-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.1692,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-06-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":7666.34,"rate":42.8,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus June 2025"},{"date":"2025-06-03","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":42.7625,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthtly allowance June 2025"},{"date":"2025-06-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":42.7625,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-06-09","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":20000.0,"rate":42.9111,"fee":0,"internal":"Y","platform":"Gcash","remark":"Sent to myself"},{"date":"2025-06-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":43.7331,"fee":0,"internal":"N","platform":"BPI","remark":"Pru June 2025"},{"date":"2025-06-16","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1200.0,"rate":1.047523,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 1,200 - SGD 1,145.56 Exchange rate-0.954633 rent June 2025 + 200 for spending"},{"date":"2025-06-18","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":43.7331,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-06-19","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":43.7848,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-06-26","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2031.41,"rate":43.5882,"fee":10.0,"internal":"N","platform":"BPI","remark":"Spacetaft unit 20-O Condo Due June 2025"},{"date":"2025-06-29","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":78000.0,"rate":43.5882,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes Manor 10/36 June 2025"},{"date":"2025-07-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":43.5882,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthtly allowance July 2025"},{"date":"2025-07-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49947.82,"rate":43.5901,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-07-03","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49952.18,"rate":43.5901,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-07-05","dir":"OUT","name":"Rhoda","country":"PH","category":"RFID/Fees","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":1000.0,"rate":43.6414,"fee":10.0,"internal":"N","platform":"Gcash","remark":"Autosweep"},{"date":"2025-07-05","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"BTCTurk","ccy":"PHP","foreignAmt":100000.0,"rate":43.6414,"fee":0,"internal":"Y","platform":"BPI","remark":"PHP100,000.00 - USDT1,765"},{"date":"2025-07-09","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":10117.02,"rate":44.1521,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-07-09","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":7908.53,"rate":44.1521,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Aug 2025 paid in July"},{"date":"2025-07-15","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1000.0,"rate":1.058683,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 1,000 - SGD 944.57 -Exchange rate 1.058684 rent Jul 2025 0.94457"},{"date":"2025-07-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":43.6414,"fee":0,"internal":"N","platform":"BPI","remark":"Pru July 2025"},{"date":"2025-07-26","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2051.46,"rate":43.6414,"fee":10.0,"internal":"N","platform":"BPI","remark":"spacetaft unit 20-O July 2025 monthly due"},{"date":"2025-07-29","dir":"OUT","name":"Zerrin","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":19997.65,"rate":43.9722,"fee":0,"internal":"N","platform":"DBS","remark":"Gcash for zerrin"},{"date":"2025-07-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49952.93,"rate":43.9722,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-07-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49952.93,"rate":43.9722,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-07-30","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49989.6,"rate":44.0044,"fee":0,"internal":"N","platform":"DBS","remark":"Twinlakes Manor 11/36 Jul 2025"},{"date":"2025-07-30","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":27977.84,"rate":44.0044,"fee":0,"internal":"N","platform":"DBS","remark":"Twinlakes Manor 11/36 Jul 2025"},{"date":"2025-07-31","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"RCBC","ccy":"PHP","foreignAmt":35000.0,"rate":44.5097,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-08-01","dir":"OUT","name":"Zerrin","country":"PH","category":"Other","fromAcct":"RCBC","toAcct":"BDO","ccy":"PHP","foreignAmt":33371.34,"rate":42.2,"fee":10.0,"internal":"N","platform":"RCBC","remark":"For Zerrin Hair Swensons treatment"},{"date":"2025-08-04","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"RCBC","toAcct":"BDO","ccy":"PHP","foreignAmt":25065.84,"rate":44.1436,"fee":10.0,"internal":"N","platform":"RCBC","remark":"Monthtly allowance Aug 2025"},{"date":"2025-08-04","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"RCBC","ccy":"PHP","foreignAmt":24934.51,"rate":44.1436,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-08-13","dir":"OUT","name":"Clarice","country":"CA","category":"School","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":7200.0,"rate":1.064826,"fee":0,"internal":"N","platform":"DBS","remark":"CAD7,200 - SGD 6,761.67 Exchange rate 0.939121 school tuition fee PHP rate 44.02"},{"date":"2025-08-14","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":48021.6,"rate":44.0276,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G11 1/5"},{"date":"2025-08-15","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1000.0,"rate":1.06603,"fee":0,"internal":"N","platform":"DBS","remark":"CAD1,000 - SGD 938.06 Exchange rate 0.938064 rent PHP 41,301 rate 44.02 rent Aug 2025"},{"date":"2025-08-17","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":9994.28,"rate":44.0025,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Aug 2025"},{"date":"2025-08-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"RCBC","ccy":"PHP","foreignAmt":10005.72,"rate":44.0025,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-08-23","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"RCBC","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2050.64,"rate":43.9773,"fee":10.0,"internal":"N","platform":"RCBC","remark":"spacetaft unit 20-O Aug 2025 monthly due"},{"date":"2025-08-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"RCBC","ccy":"PHP","foreignAmt":25000.01,"rate":43.8789,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-08-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"RCBC","ccy":"PHP","foreignAmt":49949.99,"rate":43.8789,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-09-03","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"RCBC","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":43.8789,"fee":10.0,"internal":"N","platform":"RCBC","remark":"Monthtly allowance Sept 2025"},{"date":"2025-09-09","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8000.0,"rate":44.6628,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Sep 2025"},{"date":"2025-09-10","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":537.81,"rate":1.070205,"fee":0,"internal":"N","platform":"DBS","remark":"CAD537.81 -SGD502.53 Exchange rate 0.9344 Birthday gift to Ayish PHP22,176.96 rate 44.1345"},{"date":"2025-09-14","dir":"OUT","name":"Rhoda","country":"PH","category":"RFID/Fees","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":10000.0,"rate":44.0218,"fee":10.0,"internal":"N","platform":"Gcash","remark":"Autosweep RFID SLEX"},{"date":"2025-09-14","dir":"OUT","name":"Rhoda","country":"PH","category":"RFID/Fees","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":1000.0,"rate":44.0218,"fee":10.0,"internal":"N","platform":"Gcash","remark":"Easytrip RFID Cacitex"},{"date":"2025-09-15","dir":"OUT","name":"Holland Park","country":"PH","category":"Property","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":9380.78,"rate":44.0594,"fee":0,"internal":"N","platform":"Gcash","remark":"HollandPark RST balance"},{"date":"2025-09-15","dir":"OUT","name":"Holland Park","country":"PH","category":"Property","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8837.9,"rate":44.0594,"fee":0,"internal":"N","platform":"Gcash","remark":"HollandPark R"},{"date":"2025-09-15","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":39931.91,"rate":44.0594,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-09-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":44.0218,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Sep 2025"},{"date":"2025-09-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":22020.85,"rate":44.0407,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-09-17","dir":"OUT","name":"Rhoda","country":"PH","category":"Investment","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":99985.69,"rate":44.0407,"fee":0,"internal":"N","platform":"BPI","remark":"To send Mariciris for USDT to Turkiye"},{"date":"2025-09-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":49942.85,"rate":44.0407,"fee":0,"internal":"Y","platform":"BPI","remark":"Sent to myself"},{"date":"2025-09-17","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1000.0,"rate":1.067065,"fee":0,"internal":"N","platform":"DBS","remark":"CAD1,000 - SGD 937.15 Exchange rate 0.937149 Rent PHP 41,255.06 rate 44.02"},{"date":"2025-09-30","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":77849.15,"rate":44.5446,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes Manor 13/36 Sep 2025"},{"date":"2025-09-30","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":50046.98,"rate":44.5446,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":48516.44,"rate":43.35,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":44.0276,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthtly allowance Oct 2025"},{"date":"2025-10-03","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":49373.99,"rate":44.0276,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G11 2/5"},{"date":"2025-10-08","dir":"OUT","name":"Rhoda","country":"PH","category":"Loan","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":50076.73,"rate":44.414,"fee":0,"internal":"N","platform":"BPI","remark":"For CC payment Rhoda"},{"date":"2025-10-08","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49873.58,"rate":44.414,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-10","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":500.0,"rate":1.067943,"fee":0,"internal":"N","platform":"DBS","remark":"CAD500 - SGD468.19 Exchange rate 0.936389 CC gen spending help PHP20,777 rate 44.3773"},{"date":"2025-10-16","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":599.9828,"rate":1.074737,"fee":0,"internal":"N","platform":"DBS","remark":"CAD600 - SGD558.26 Exchange rate 0.930434 CC outstanding payment PHP24,756.54 rate 44.3459"},{"date":"2025-10-16","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1000.0,"rate":1.074737,"fee":0,"internal":"N","platform":"DBS","remark":"CAD1000 - SGD930.46 Exchange rate 0.930434 Rent payment PHP41262.08 rate 44.3459"},{"date":"2025-10-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":44.3459,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Oct 2025"},{"date":"2025-10-16","dir":"IN","name":"Rhoda","country":"PH","category":"Repayment","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":40000.0,"rate":44.3459,"fee":0,"internal":"Y","platform":"BPI","remark":"Return from Rhoda"},{"date":"2025-10-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49949.45,"rate":44.3454,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49949.45,"rate":44.3454,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49949.45,"rate":44.3454,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-17","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49951.66,"rate":44.3454,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-10-18","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":191060.27,"rate":44.3439,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G11 2/5 IB USD3,271.58 USD1/PHP58.40/SGD1.317  PHP1/USD0.0171"},{"date":"2025-10-25","dir":"OUT","name":"Spacetaft","country":"PH","category":"Property","fromAcct":"DBS","toAcct":"East West Bank","ccy":"PHP","foreignAmt":2125.45,"rate":44.3439,"fee":10.0,"internal":"N","platform":"DBS","remark":"Spacetaft unit 20-O Oct 2025 monthly due"},{"date":"2025-10-28","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8600.0,"rate":44.6628,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Oct 2025 with diffrence Jul/Aug 200 each"},{"date":"2025-10-30","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":39000.0,"rate":44.3439,"fee":0,"internal":"N","platform":"BPI","remark":"Twinlakes Manor 14/36 Oct 2025 half /half"},{"date":"2025-11-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":44.3439,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Nov 2025"},{"date":"2025-11-14","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8200.0,"rate":44.6628,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Nov 2025"},{"date":"2025-12-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49208.74,"rate":44.0,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-12-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25024.56,"rate":44.619,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Dec 2025"},{"date":"2025-12-02","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8191.96,"rate":44.619,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Dec 2025"},{"date":"2025-12-10","dir":"OUT","name":"Clarice","country":"CA","category":"School","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":5900.0,"rate":1.058305,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 5900.00 - SGD 5574.95  - 0.944907 School tuition fee php 44,57 4900 school +1000 rent"},{"date":"2025-12-13","dir":"OUT","name":"Rhoda","country":"PH","category":"Property","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":20000.0,"rate":44.57,"fee":0,"internal":"N","platform":"BPI","remark":"For TwinLakes Association Management Fee Due help total 52,625.04"},{"date":"2025-12-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":44.57,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Dec 2025"},{"date":"2025-12-21","dir":"OUT","name":"Zerrin","country":"PH","category":"Other","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":20000.0,"rate":44.829,"fee":0,"internal":"N","platform":"DBS","remark":"Sent to Gcash for Zerrin Spending"},{"date":"2025-12-22","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":44.8712,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-12-22","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":44.8712,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-12-22","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":44.8712,"fee":0,"internal":"Y","platform":"DBS","remark":"Sent to myself"},{"date":"2025-12-24","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":999.9532,"rate":1.057189,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 1000.00 - SGD 945.86 - 0.945864 Christmass Gift 22k  to Rhoda sent me to BPI"},{"date":"2025-12-24","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":233.29,"rate":1.057189,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 233.29 - SGD 220.67 - 0.945864 Christmass Gift 10k from lola.  to Rhoda sent me to BPI 10k"},{"date":"2025-12-24","dir":"IN","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":10000.0,"rate":45.3312,"fee":0,"internal":"Y","platform":"BPI","remark":"to Rhoda Sent me for Lola gift to clarice"},{"date":"2025-12-24","dir":"IN","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":22000.0,"rate":45.3312,"fee":0,"internal":"Y","platform":"BPI","remark":"to Rhoda Sent me for our gift to clarice"},{"date":"2026-01-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":136979.62,"rate":44.57,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G11 3/5 IB USD2,331.8 USD1/PHP58.75/SGD1.317  PHP1/USD0.0170"},{"date":"2026-01-01","dir":"OUT","name":"Clarice","country":"CA","category":"School","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":2000.0,"rate":1.048856,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 2,000 - SGD 1,906.84 - 0.95342 School tuition fee additional php 45.04"},{"date":"2026-01-01","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":24735.24,"rate":44.57,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Jan 2026"},{"date":"2026-01-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8113.16,"rate":44.57,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Jan 2026"},{"date":"2026-01-04","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":135000.0,"rate":45.0471,"fee":0,"internal":"Y","platform":"BPI","remark":"BPI CC payment due 5 jan"},{"date":"2026-01-16","dir":"OUT","name":"Zerrin","country":"PH","category":"Insurance","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":9947.33,"rate":45.8403,"fee":0,"internal":"N","platform":"BPI","remark":"Pru Jan 2026"},{"date":"2026-01-16","dir":"OUT","name":"Clarice","country":"CA","category":"Insurance","fromAcct":"DBS","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1400.0,"rate":1.069021,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 1,400 - SGD 1,309.61 - 0.93543 Rental + insurance closure"},{"date":"2026-01-27","dir":"OUT","name":"JM","country":"PH","category":"RFID/Fees","fromAcct":"BPI","toAcct":"Gcash","ccy":"PHP","foreignAmt":1023.64,"rate":45.148,"fee":10.0,"internal":"N","platform":"BPI","remark":"RFID easytrip"},{"date":"2026-01-27","dir":"OUT","name":"JM","country":"PH","category":"RFID/Fees","fromAcct":"BPI","toAcct":"Gcash","ccy":"PHP","foreignAmt":1023.64,"rate":45.148,"fee":12.0,"internal":"N","platform":"BPI","remark":"RFID autosweep GM"},{"date":"2026-01-27","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"Gcash","ccy":"PHP","foreignAmt":19117.01,"rate":45.148,"fee":0,"internal":"Y","platform":"DBS","remark":"sent to myself for Gcash spending WISE ASIA-PACIFIC PTE LTD(VPA starting UEN201) 1 SGD = 46.5858 PHP Wise fee: 3.11 SGD"},{"date":"2026-01-29","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":46.319,"fee":0,"internal":"Y","platform":"DBS","remark":"wise Sent to myself transfer fee php 297.5 / sgd 6.39"},{"date":"2026-01-30","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":46.2098,"fee":0,"internal":"Y","platform":"DBS","remark":"wise Sent to myself transfer fee php 297.5 / sgd 6.4"},{"date":"2026-02-01","dir":"OUT","name":"Rhoda","country":"PH","category":"RFID/Fees","fromAcct":"BPI","toAcct":"Gcash","ccy":"PHP","foreignAmt":9998.79,"rate":44.1,"fee":10.0,"internal":"N","platform":"BPI","remark":"RFID autosweep Blue Territory"},{"date":"2026-02-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":39995.17,"rate":44.1,"fee":0,"internal":"Y","platform":"BPI","remark":"BPI CC payment due 5 feb"},{"date":"2026-02-01","dir":"OUT","name":"Holiday fund","country":"PH","category":"Other","fromAcct":"RCBC","toAcct":"RCBC","ccy":"PHP","foreignAmt":9998.79,"rate":44.1,"fee":0,"internal":"N","platform":"RCBC","remark":"Holiday fund Feb 2026 destination account (RCBC - CAA) X5972"},{"date":"2026-02-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":7744.17,"rate":44.1,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Feb 2026"},{"date":"2026-02-02","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"DBS","toAcct":"Wise","ccy":"CAD","foreignAmt":700.0,"rate":1.069698,"fee":0,"internal":"N","platform":"DBS","remark":"CAD 700 - SGD 654.39 -Exchange rate 1.0721 CC help 0.93274"},{"date":"2026-02-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":25000.0,"rate":44.1053,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Feb 2026"},{"date":"2026-02-11","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"DBS","toAcct":"BPI","ccy":"PHP","foreignAmt":1000000.0,"rate":46.0003,"fee":0,"internal":"Y","platform":"DBS","remark":"sent to myself for  to Rhoda loan help Wise asia pasific pte"},{"date":"2026-02-21","dir":"OUT","name":"Rhoda","country":"PH","category":"Other","fromAcct":"BPI","toAcct":"BPI","ccy":"PHP","foreignAmt":53000.0,"rate":45.6621,"fee":0,"internal":"N","platform":"BPI","remark":"To Rhoda Blue Tires x4 for balance check"},{"date":"2026-02-27","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"BPI","ccy":"PHP","foreignAmt":49950.0,"rate":45.3131,"fee":0,"internal":"Y","platform":"Wise","remark":"Sent to Myself"},{"date":"2026-03-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"BPI","ccy":"PHP","foreignAmt":48231.87,"rate":44.35,"fee":0,"internal":"Y","platform":"Wise","remark":"Sent to myself"},{"date":"2026-03-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":7788.07,"rate":44.35,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Mar 2026"},{"date":"2026-03-02","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"BPI","toAcct":"CC (credit card)","ccy":"PHP","foreignAmt":141612.36,"rate":45.3217,"fee":0,"internal":"N","platform":"BPI","remark":"School Tuition G11 3/5 IB USD2,331.8 USD1/PHP $2,331.84/59.10"},{"date":"2026-03-02","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"BPI","ccy":"PHP","foreignAmt":24668.97,"rate":45.3217,"fee":0,"internal":"Y","platform":"Wise","remark":"Sent to myself"},{"date":"2026-03-02","dir":"OUT","name":"Mina","country":"PH","category":"Allowance","fromAcct":"BPI","toAcct":"BDO","ccy":"PHP","foreignAmt":24668.97,"rate":45.3217,"fee":10.0,"internal":"N","platform":"BPI","remark":"Monthly Allowance Mar 2026"},{"date":"2026-03-07","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"RCBC","toAcct":"RCBC","ccy":"PHP","foreignAmt":30000.0,"rate":45.9298,"fee":0,"internal":"Y","platform":"RCBC","remark":"Travel Fund"},{"date":"2026-03-13","dir":"OUT","name":"Clarice","country":"CA","category":"Other","fromAcct":"Wise","toAcct":"Scotiabank CA","ccy":"CAD","foreignAmt":1000.0,"rate":1.063087,"fee":0,"internal":"N","platform":"Wise","remark":"1,000 CAD 1 SGD = 1.0670 CAD 3.45 SGD Fee"},{"date":"2026-04-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"nan","ccy":"PHP","foreignAmt":47922.11,"rate":44.8,"fee":0,"internal":"Y","platform":"Wise","remark":""},{"date":"2026-04-02","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"nan","ccy":"PHP","foreignAmt":49950.0,"rate":46.81,"fee":0,"internal":"Y","platform":"Wise","remark":""},{"date":"2026-04-21","dir":"OUT","name":"Erkan","country":"TR","category":"Gift","fromAcct":"Wise","toAcct":"Wise HU","ccy":"EUR","foreignAmt":200.0,"rate":0.6667,"fee":0,"internal":"N","platform":"Wise","remark":"Sent to Ilkim Hungary via Erkan/Akbank \u2014 EUR 200 (HUF 72,637.5 was reference rate, not transfer currency). Wise fee 1.29 SGD"},{"date":"2026-04-29","dir":"OUT","name":"Erkan","country":"TR","category":"Gift","fromAcct":"Wise","toAcct":"Wise HU","ccy":"EUR","foreignAmt":300.0,"rate":0.6,"fee":0,"internal":"N","platform":"Wise","remark":"Sent to Ilkim Hungary via Erkan/Akbank \u2014 EUR 300 (HUF 121,871 was reference rate, not transfer currency). Wise fee 2.15 SGD"},{"date":"2026-05-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"BPI","ccy":"PHP","foreignAmt":148737.73,"rate":47.4544,"fee":0,"internal":"Y","platform":"Wise","remark":"Sent to rhoda to pay my credit card due 4 may 150k"},{"date":"2026-05-01","dir":"OUT","name":"Ruchan","country":"SG","category":"Self-Transfer","fromAcct":"Wise","toAcct":"Gcash","ccy":"PHP","foreignAmt":29776.68,"rate":47.4544,"fee":0,"internal":"Y","platform":"Wise","remark":"Sent to my Gcash for zerrin Spending after I bought X2 Dreame Vacuum Clener to Zerrin"},{"date":"2026-05-01","dir":"OUT","name":"Zerrin","country":"PH","category":"School","fromAcct":"Gcash","toAcct":"Gcash","ccy":"PHP","foreignAmt":8333.22,"rate":47.4544,"fee":0,"internal":"N","platform":"Gcash","remark":"School Bus Apr 2026"}];
+const SEED_RATES = [{"date":"2026-06-16","ccy":"PHP","rate":46.5,"platform":"Wise","note":"Philippine Peso \u2014 Manila"},{"date":"2026-06-16","ccy":"CAD","rate":1.067,"platform":"Wise","note":"Canadian Dollar \u2014 Clarice Vancouver"},{"date":"2026-06-16","ccy":"TRY","rate":44.88,"platform":"Wise","note":"Turkish Lira \u2014 Erkan Antalya"},{"date":"2026-06-16","ccy":"EUR","rate":0.687,"platform":"Wise","note":"Euro \u2014 Ilkim Budapest"},{"date":"2026-06-16","ccy":"USD","rate":0.738,"platform":"DBS","note":"US Dollar reference"},{"date":"2026-06-16","ccy":"HUF","rate":270.5,"platform":"Wise","note":"Hungarian Forint fallback"},{"date":"2026-05-01","ccy":"PHP","rate":46.2,"platform":"Wise","note":""},{"date":"2026-04-01","ccy":"PHP","rate":46.7,"platform":"Wise","note":""},{"date":"2026-03-01","ccy":"CAD","rate":1.061,"platform":"Wise","note":""},{"date":"2025-12-01","ccy":"PHP","rate":46.0,"platform":"DBS","note":""},{"date":"2025-10-01","ccy":"PHP","rate":45.8,"platform":"DBS","note":""}];
+
+const FLAGS = {PH:'PH',TR:'TR',SG:'SG',CA:'CA',HU:'HU',US:'US',OTHER:'—'};
+const ACCOUNTS = [
+  {name:'DBS', bank:'DBS Bank', country:'SG', ccy:'SGD', note:'Main outbound account'},
+  {name:'OCBC', bank:'OCBC', country:'SG', ccy:'SGD', note:'Backup SG account'},
+  {name:'BPI', bank:'BPI Philippines', country:'PH', ccy:'PHP', note:'Main PH account'},
+  {name:'RCBC', bank:'RCBC', country:'PH', ccy:'PHP', note:'Holiday fund'},
+  {name:'Akbank', bank:'Akbank', country:'TR', ccy:'TRY', note:'Turkish account'},
+  {name:'BTCTurk', bank:'BTCTurk', country:'TR', ccy:'TRY', note:'Crypto / USDT route'},
+];
+const PEOPLE_REF = [
+  {name:'Zerrin', rel:'Daughter (17)', country:'PH', ccy:'PHP', bank:'BPI CC / Gcash / BDO'},
+  {name:'Mina', rel:'Ex-wife', country:'PH', ccy:'PHP', bank:'BDO'},
+  {name:'Rhoda', rel:'Partner', country:'PH', ccy:'PHP', bank:'BPI / Gcash'},
+  {name:'Clarice', rel:"Rhoda's daughter (28)", country:'CA', ccy:'CAD', bank:'Bank of Nova Scotia'},
+  {name:'Erkan', rel:'Brother', country:'TR', ccy:'TRY', bank:'Akbank / BTCTurk'},
+  {name:'Ilkim', rel:"Erkan's daughter", country:'HU', ccy:'EUR', bank:'Wise Hungary'},
+  {name:'Michelle', rel:"Rhoda's sister", country:'PH', ccy:'PHP', bank:'BPI'},
+  {name:'JM', rel:"Michelle's son", country:'PH', ccy:'PHP', bank:'Gcash'},
+  {name:'Heart', rel:"Michelle's daughter", country:'PH', ccy:'PHP', bank:'BPI'},
+];
+
+function showTab(name){
+  const names=['dashboard','transfers','fx','summary','accounts'];
+  document.querySelectorAll('.ltab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(name==='dashboard')renderDashboard();
+  if(name==='transfers')renderTransfers();
+  if(name==='fx')renderFX();
+  if(name==='summary')renderSummary();
+  if(name==='accounts')renderAccounts();
+}
+
+function fmtSGD(n){return'S$'+(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function fmtForeign(n,ccy){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy}
+function sgdEquiv(tx){
+  if(tx.ccy==='SGD')return parseFloat(tx.foreignAmt)||0;
+  const r=parseFloat(tx.rate)||getLatestRate(tx.ccy)||1;
+  return r>0?(parseFloat(tx.foreignAmt)||0)/r:0;
+}
+function totalSGD(tx){return sgdEquiv(tx)+(parseFloat(tx.fee)||0)}
+function getLatestRate(ccy){
+  const rows=db.rates.filter(r=>r.ccy===ccy).sort((a,b)=>b.date.localeCompare(a.date));
+  return rows.length?parseFloat(rows[0].rate):null;
+}
+function getPeople(){return[...new Set(db.transfers.map(t=>t.name))].sort()}
+
+function renderDashboard(){
+  const now=new Date();
+  const thisMonth=now.toISOString().slice(0,7);
+  const outAll=db.transfers.filter(t=>t.dir==='OUT'&&t.category!=='Self-Transfer'&&t.internal!=='Y');
+  const inAll=db.transfers.filter(t=>t.dir==='IN');
+  const outMonth=outAll.filter(t=>t.date.startsWith(thisMonth));
+
+  const totalOut=outAll.reduce((s,t)=>s+totalSGD(t),0);
+  const totalIn=inAll.reduce((s,t)=>s+totalSGD(t),0);
+  const monthOut=outMonth.reduce((s,t)=>s+totalSGD(t),0);
+
+  document.getElementById('dash-cards').innerHTML=`
+    <div class="lcard out"><div class="lcard-label">Total sent</div><div class="lcard-value">${fmtSGD(totalOut)}</div><div class="lcard-sub">${outAll.length} entries (excl. self-transfers)</div></div>
+    <div class="lcard in"><div class="lcard-label">Total received</div><div class="lcard-value">${fmtSGD(totalIn)}</div><div class="lcard-sub">${inAll.length} entries</div></div>
+    <div class="lcard net"><div class="lcard-label">Net position</div><div class="lcard-value">${fmtSGD(totalIn-totalOut)}</div><div class="lcard-sub">In minus out</div></div>
+    <div class="lcard out"><div class="lcard-label">This month, out</div><div class="lcard-value">${fmtSGD(monthOut)}</div><div class="lcard-sub">${thisMonth}</div></div>
+  `;
+  const recent=[...db.transfers].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  document.getElementById('dash-tbody').innerHTML=recent.map(t=>`
+    <tr>
+      <td class="flag-rail ${t.dir==='OUT'?'out-rail':'in-rail'}"></td>
+      <td>${t.date}</td>
+      <td><span class="stamp ${t.dir.toLowerCase()}">${t.dir}</span></td>
+      <td><strong>${t.name}</strong></td>
+      <td><span class="ccy-tag">${t.ccy}</span></td>
+      <td class="amt ${t.dir==='OUT'?'out':'in'}" style="text-align:right">${fmtForeign(t.foreignAmt,t.ccy)}</td>
+      <td class="amt ${t.dir==='OUT'?'out':'in'}" style="text-align:right">${fmtSGD(totalSGD(t))}</td>
+      <td><span class="cat-tag">${t.category}</span></td>
+    </tr>`).join('');
+}
+
+function clearFilters(){
+  ['f-search','f-dir','f-ccy','f-cat','f-month'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderTransfers();
+}
+function renderTransfers(){
+  const search=(document.getElementById('f-search').value||'').toLowerCase();
+  const dir=document.getElementById('f-dir').value;
+  const ccy=document.getElementById('f-ccy').value;
+  const cat=document.getElementById('f-cat').value;
+  const month=document.getElementById('f-month').value;
+  let rows=[...db.transfers].sort((a,b)=>b.date.localeCompare(a.date));
+  if(dir)rows=rows.filter(t=>t.dir===dir);
+  if(ccy)rows=rows.filter(t=>t.ccy===ccy);
+  if(cat)rows=rows.filter(t=>t.category===cat);
+  if(month)rows=rows.filter(t=>t.date.startsWith(month));
+  if(search)rows=rows.filter(t=>(t.name+(t.toAcct||'')+(t.fromAcct||'')+(t.remark||'')+t.category).toLowerCase().includes(search));
+  document.getElementById('result-count').textContent=rows.length+' entries';
+  const tbody=document.getElementById('tx-tbody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13"><div class="empty-row">No entries match these filters.</div></td></tr>`;return;}
+  tbody.innerHTML=rows.map(t=>`
+    <tr>
+      <td class="flag-rail ${t.dir==='OUT'?'out-rail':'in-rail'}"></td>
+      <td style="white-space:nowrap;font-family:var(--font-mono);font-size:11.5px">${t.date}</td>
+      <td><span class="stamp ${t.dir.toLowerCase()}">${t.dir}</span></td>
+      <td><strong>${t.name}</strong>${t.internal==='Y'?' <span style="color:var(--ink-soft);font-size:10px">(self)</span>':''}</td>
+      <td style="font-size:11px;color:var(--ink-soft)">${t.fromAcct||'—'}</td>
+      <td style="font-size:11px;color:var(--ink-soft)">${t.toAcct||'—'}</td>
+      <td><span class="ccy-tag">${t.ccy}</span></td>
+      <td style="text-align:right" class="amt ${t.dir==='OUT'?'out':'in'}">${(parseFloat(t.foreignAmt)||0).toLocaleString('en-SG',{minimumFractionDigits:2})}</td>
+      <td style="text-align:right;font-size:11px;color:var(--ink-soft);font-family:var(--font-mono)">${t.ccy==='SGD'?'—':(parseFloat(t.rate)||getLatestRate(t.ccy)||0).toFixed(4)}</td>
+      <td style="text-align:right" class="amt ${t.dir==='OUT'?'out':'in'}">${fmtSGD(sgdEquiv(t))}</td>
+      <td style="text-align:right;font-size:11px;font-family:var(--font-mono)">${t.fee?fmtSGD(t.fee):'—'}</td>
+      <td><span class="cat-tag">${t.category}</span></td>
+      <td style="font-size:11px;color:var(--ink-soft);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.remark||'').replace(/"/g,'&quot;')}">${t.remark||''}</td>
+      <td style="white-space:nowrap;position:sticky;right:0;background:var(--paper-raised);box-shadow:-4px 0 4px -2px rgba(0,0,0,.08)">
+        <div style="display:flex;gap:5px">
+          <button class="btn ghost sm" onclick="editTx('${t.id}')" title="Edit" style="padding:4px 8px">✎</button>
+          <button class="btn sm danger" onclick="deleteTx('${t.id}')" title="Delete">×</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function renderFX(){
+  const ccys=['PHP','CAD','TRY','EUR','USD','HUF'];
+  document.getElementById('rate-grid').innerHTML=ccys.map(ccy=>{
+    const r=getLatestRate(ccy);
+    const rows=db.rates.filter(x=>x.ccy===ccy).sort((a,b)=>b.date.localeCompare(a.date));
+    const latest=rows[0]||{};
+    return `<div class="rate-card">
+      <div class="rate-card-top"><div class="rate-ccy">${ccy}</div></div>
+      <div class="rate-val">1 SGD = ${r?r.toFixed(4):'—'} ${ccy}</div>
+      <div class="rate-inv">${r?'1 '+ccy+' = S$'+(1/r).toFixed(4):'no rate yet'}</div>
+      <div class="rate-input-row">
+        <input type="number" id="quick-rate-${ccy}" placeholder="${r||'enter rate'}" step="0.0001">
+        <button class="btn sm" onclick="saveQuickRate('${ccy}')">Update</button>
+      </div>
+      <div class="rate-date">${latest.date?'Last: '+latest.date+' · '+latest.platform:''}</div>
+    </div>`;
+  }).join('');
+  const history=[...db.rates].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('rate-history-tbody').innerHTML=history.map(r=>`
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:11.5px">${r.date}</td>
+      <td><span class="ccy-tag">${r.ccy}</span></td>
+      <td class="amt">${parseFloat(r.rate).toFixed(4)}</td>
+      <td style="color:var(--ink-soft);font-size:11px;font-family:var(--font-mono)">${(1/parseFloat(r.rate)).toFixed(6)}</td>
+      <td style="font-size:12px">${r.platform||'—'}</td>
+      <td style="font-size:11px;color:var(--ink-soft)">${r.note||''}</td>
+      <td><button class="btn sm danger" onclick="deleteRate('${r.id}')">×</button></td>
+    </tr>`).join('');
+}
+function saveQuickRate(ccy){
+  const val=parseFloat(document.getElementById('quick-rate-'+ccy).value);
+  if(!val||val<=0)return;
+  db.rates.push({id:uid(),date:new Date().toISOString().slice(0,10),ccy,rate:val,platform:'Manual',note:'Quick update'});
+  save();renderFX();
+}
+function deleteRate(id){db.rates=db.rates.filter(r=>r.id!==id);save();renderFX();}
+
+function renderSummary(){
+  const outTx=db.transfers.filter(t=>t.dir==='OUT'&&t.internal!=='Y');
+  const byPerson={};
+  outTx.forEach(t=>{byPerson[t.name]=(byPerson[t.name]||0)+totalSGD(t)});
+  const personRows=Object.entries(byPerson).sort((a,b)=>b[1]-a[1]);
+  const totalPerson=personRows.reduce((s,r)=>s+r[1],0);
+  document.getElementById('sum-by-person').innerHTML=
+    personRows.map(([name,amt])=>`<tr><td class="sum-label">${name}</td><td class="sum-amount">${fmtSGD(amt)}</td><td style="color:var(--ink-soft);font-size:11px;text-align:right;font-family:var(--font-mono)">${totalPerson?((amt/totalPerson)*100).toFixed(0)+'%':''}</td></tr>`).join('')+
+    `<tr class="sum-total"><td>Total</td><td class="sum-amount">${fmtSGD(totalPerson)}</td><td></td></tr>`;
+
+  const byCat={};
+  outTx.forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+totalSGD(t)});
+  const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('sum-by-cat').innerHTML=
+    catRows.map(([cat,amt])=>`<tr><td class="sum-label">${cat}</td><td class="sum-amount">${fmtSGD(amt)}</td></tr>`).join('')+
+    `<tr class="sum-total"><td>Total</td><td class="sum-amount">${fmtSGD(catRows.reduce((s,r)=>s+r[1],0))}</td></tr>`;
+
+  const byCcyForeign={};
+  outTx.forEach(t=>{byCcyForeign[t.ccy]=(byCcyForeign[t.ccy]||0)+(parseFloat(t.foreignAmt)||0)});
+  document.getElementById('sum-by-ccy').innerHTML=
+    Object.entries(byCcyForeign).sort((a,b)=>b[1]-a[1]).map(([ccy,amt])=>`<tr><td class="sum-label"><span class="ccy-tag">${ccy}</span></td><td class="sum-amount">${amt.toLocaleString('en-SG',{minimumFractionDigits:2})}</td></tr>`).join('');
+
+  const byMonth={};
+  outTx.forEach(t=>{const m=t.date.slice(0,7);byMonth[m]=(byMonth[m]||0)+totalSGD(t)});
+  const months=Object.keys(byMonth).sort().slice(-12).reverse();
+  const maxM=Math.max(...Object.values(byMonth).map(v=>v||0),1);
+  document.getElementById('monthly-bars').innerHTML=months.map(m=>{
+    const amt=byMonth[m];
+    const pct=maxM?Math.round((amt/maxM)*100):0;
+    return `<div class="month-bar">
+      <div class="month-label">${m.slice(2)}</div>
+      <div class="month-track"><div class="month-fill" style="width:${pct}%"></div></div>
+      <div class="month-amount">${fmtSGD(amt)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderAccounts(){
+  document.getElementById('acc-list').innerHTML=ACCOUNTS.map(a=>`
+    <div class="entity-item">
+      <div class="entity-info">
+        <div class="entity-flag">${a.country}</div>
+        <div><div class="entity-name">${a.name}</div><div class="entity-sub">${a.bank}${a.note?' · '+a.note:''}</div></div>
+      </div>
+      <div class="entity-tag">${a.ccy}</div>
+    </div>`).join('');
+  document.getElementById('ppl-list').innerHTML=PEOPLE_REF.map(p=>`
+    <div class="entity-item">
+      <div class="entity-info">
+        <div class="entity-flag">${p.country}</div>
+        <div><div class="entity-name">${p.name}</div><div class="entity-sub">${p.rel} · ${p.bank}</div></div>
+      </div>
+      <div class="entity-tag">${p.ccy}</div>
+    </div>`).join('');
+}
+
+let editingId=null;
+let currentDir='OUT';
+function openAddTx(){
+  editingId=null;currentDir='OUT';
+  document.getElementById('modal-tx-title').textContent='New entry';
+  setDir('OUT');
+  document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
+  ['f-name','f-to-acct','f-foreign-amt','f-remark','f-from-acct'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-rate').value='';
+  document.getElementById('f-fee').value='0';
+  document.getElementById('f-country').value='';
+  document.getElementById('f-ccy-tx').value='PHP';
+  document.getElementById('f-platform').value='Wise';
+  document.getElementById('f-category').value='Allowance';
+  updatePeopleList();updateAcctsList();updateRatePreview();
+  document.getElementById('modal-tx').classList.add('open');
+}
+function editTx(id){
+  const t=db.transfers.find(x=>x.id===id);if(!t)return;
+  editingId=id;currentDir=t.dir;
+  document.getElementById('modal-tx-title').textContent='Edit entry';
+  setDir(t.dir);
+  document.getElementById('f-date').value=t.date;
+  document.getElementById('f-name').value=t.name;
+  document.getElementById('f-country').value=t.country||'';
+  document.getElementById('f-category').value=t.category;
+  document.getElementById('f-from-acct').value=t.fromAcct||'';
+  document.getElementById('f-to-acct').value=t.toAcct||'';
+  document.getElementById('f-ccy-tx').value=t.ccy;
+  document.getElementById('f-foreign-amt').value=t.foreignAmt;
+  document.getElementById('f-rate').value=t.rate||'';
+  document.getElementById('f-fee').value=t.fee||0;
+  document.getElementById('f-platform').value=t.platform||'Wise';
+  document.getElementById('f-remark').value=t.remark||'';
+  updatePeopleList();updateAcctsList();updateRatePreview();
+  document.getElementById('modal-tx').classList.add('open');
+}
+function setDir(dir){
+  currentDir=dir;
+  const bOut=document.getElementById('btn-out'),bIn=document.getElementById('btn-in');
+  bOut.className='';bIn.className='';
+  if(dir==='OUT'){bOut.classList.add('active','out');document.getElementById('lbl-name').textContent='Recipient name';document.getElementById('lbl-from-acct').textContent='From account (SG)';document.getElementById('lbl-to-acct').textContent='To bank / destination';}
+  else{bIn.classList.add('active','in');document.getElementById('lbl-name').textContent='Sender / source';document.getElementById('lbl-from-acct').textContent='From account (origin)';document.getElementById('lbl-to-acct').textContent='To my account';}
+}
+function updateAcctsList(){
+  document.getElementById('accts-list').innerHTML=ACCOUNTS.map(a=>`<option value="${a.name}">`).join('');
+}
+function updateCountryDefaults(){
+  const country=document.getElementById('f-country').value;
+  const ccyMap={PH:'PHP',TR:'TRY',CA:'CAD',HU:'EUR',SG:'SGD'};
+  if(ccyMap[country])document.getElementById('f-ccy-tx').value=ccyMap[country];
+  updateRatePreview();
+}
+function updatePeopleList(){
+  document.getElementById('people-list').innerHTML=getPeople().map(p=>`<option value="${p}">`).join('');
+}
+function updateRatePreview(){
+  const ccy=document.getElementById('f-ccy-tx').value;
+  document.getElementById('rate-ccy-label').textContent=ccy;
+  const manualRate=parseFloat(document.getElementById('f-rate').value);
+  const autoRate=getLatestRate(ccy);
+  const rate=manualRate||autoRate;
+  const amt=parseFloat(document.getElementById('f-foreign-amt').value);
+  let preview='';
+  if(rate&&amt){
+    const sgd=ccy==='SGD'?amt:amt/rate;
+    preview=`≈ ${fmtSGD(sgd)}`+(!manualRate&&autoRate?' (using FX table rate)':'');
+  } else if(autoRate){
+    preview=`FX table: 1 SGD = ${autoRate} ${ccy}`;
+  } else {
+    preview=`No rate found — enter rate above or update FX rates`;
+  }
+  document.getElementById('rate-preview').textContent=preview;
+}
+function saveTx(){
+  const date=document.getElementById('f-date').value;
+  const name=document.getElementById('f-name').value.trim();
+  const ccy=document.getElementById('f-ccy-tx').value;
+  const foreignAmt=parseFloat(document.getElementById('f-foreign-amt').value);
+  if(!date||!name||!foreignAmt){alert('Date, name and amount are required.');return;}
+  const manualRate=parseFloat(document.getElementById('f-rate').value);
+  const autoRate=getLatestRate(ccy);
+  const rate=manualRate||autoRate||1;
+  const category=document.getElementById('f-category').value;
+  const tx={
+    id:editingId||uid(),date,dir:currentDir,name,
+    country:document.getElementById('f-country').value,
+    fromAcct:document.getElementById('f-from-acct').value,
+    toAcct:document.getElementById('f-to-acct').value,
+    ccy,foreignAmt,rate,
+    fee:parseFloat(document.getElementById('f-fee').value)||0,
+    platform:document.getElementById('f-platform').value,
+    category,
+    internal: category==='Self-Transfer'?'Y':'N',
+    remark:document.getElementById('f-remark').value.trim(),
+  };
+  if(editingId){db.transfers=db.transfers.map(t=>t.id===editingId?tx:t);}
+  else{db.transfers.push(tx);}
+  save();closeModal('modal-tx');renderDashboard();renderTransfers();
+}
+function deleteTx(id){if(confirm('Delete this entry?')){db.transfers=db.transfers.filter(t=>t.id!==id);save();renderTransfers();renderDashboard();}}
+
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  if(el.id==='login-overlay') return; // never closeable by clicking outside — must enter correct passcode
+  el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')});
+});
+
+function exportCSV(){
+  const headers=['date','dir','name','country','fromAcct','toAcct','ccy','foreignAmt','rate','sgdEquiv','fee','totalSGD','platform','category','internal','remark'];
+  const rows=db.transfers.map(t=>[t.date,t.dir,t.name,t.country||'',t.fromAcct||'',t.toAcct||'',t.ccy,t.foreignAmt,t.rate,sgdEquiv(t).toFixed(2),t.fee,totalSGD(t).toFixed(2),t.platform||'',t.category,t.internal||'N','"'+(t.remark||'').replace(/"/g,'""')+'"'].join(','));
+  const csv=headers.join(',')+'\n'+rows.join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='passbook_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// App starts via initLoginGate() above — it calls loadData() once unlocked.
+</script>
+</body>
+</html>
