@@ -109,26 +109,43 @@ td{padding:8px 11px;vertical-align:middle}
 .dir-toggle button.active.in{background:var(--forest-pale);color:var(--forest-deep)}
 
 /* ═══ FX RATE CARDS ═══ */
-.rate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule-strong);margin-bottom:26px}
+.rate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule-strong);margin-bottom:26px}
 .rate-card{background:var(--paper-raised);padding:15px 17px}
 .rate-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .rate-ccy{font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--navy)}
 .rate-val{font-family:var(--font-mono);font-size:12.5px;font-weight:500;margin-bottom:2px}
 .rate-inv{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft)}
 .rate-date{font-family:var(--font-mono);font-size:9.5px;color:var(--ink-soft);margin-top:7px;border-top:1px solid var(--rule);padding-top:6px}
-.rate-input-row{display:flex;align-items:center;gap:7px;margin-top:9px}
-.rate-input-row input{flex:1;padding:5px 8px;border:1px solid var(--rule-strong);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--navy);background:var(--navy-pale);font-family:var(--font-mono)}
+.rate-input-row{display:flex;align-items:center;gap:6px;margin-top:9px;min-width:0}
+.rate-input-row input{flex:1 1 auto;min-width:0;padding:5px 6px;border:1px solid var(--rule-strong);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--navy);background:var(--navy-pale);font-family:var(--font-mono)}
+.rate-input-row .btn{flex:0 0 auto;white-space:nowrap;padding:5px 10px}
 
 /* ═══ SUMMARY GRID ═══ */
-.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.sum-block{background:var(--paper-raised);border:1px solid var(--rule-strong)}
+.summary-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;min-width:0}
+.sum-block{background:var(--paper-raised);border:1px solid var(--rule-strong);min-width:0}
 .sum-block-title{padding:11px 15px;font-family:var(--font-mono);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);background:#efe7d5;border-bottom:1px solid var(--rule-strong)}
-.sum-table td{padding:7px 15px;font-size:12.5px;border-bottom:1px solid var(--rule)}
-.sum-table tr:last-child td{border-bottom:none}
+.sum-table{width:100%}
+.sum-row{display:flex;align-items:center;gap:10px;padding:7px 10px;font-size:12px;border-bottom:1px solid var(--rule)}
+.sum-row .sum-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sum-row .sum-amount{flex:0 0 auto;font-weight:600;font-family:var(--font-mono);white-space:nowrap}
+.sum-row .sum-pct{flex:0 0 auto;color:var(--ink-soft);font-size:11px;font-family:var(--font-mono);width:32px;text-align:right}
+.sum-row.sum-total{font-weight:700;background:#efe7d5;border-bottom:none}
 .sum-table .sum-label{color:var(--ink-soft)}
-.sum-table .sum-amount{font-weight:600;font-family:var(--font-mono);text-align:right}
-.sum-total td{font-weight:700;background:#efe7d5}
-.month-bar{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule)}
+.month-bar{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);min-width:0}
+.cs-range-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.cs-group{border:1px solid var(--rule-strong);margin-bottom:10px;background:var(--paper-raised)}
+.cs-group summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:12.5px;background:#efe7d5}
+.cs-group summary::-webkit-details-marker{display:none}
+.cs-group summary::before{content:'▸';margin-right:8px;color:var(--rust-deep);display:inline-block;transition:transform .15s}
+.cs-group[open] summary::before{transform:rotate(90deg)}
+.cs-group-total{font-weight:700;color:var(--rust-deep)}
+.cs-row{display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--rule);font-size:12.5px}
+.cs-row .cs-date{font-family:var(--font-mono);color:var(--ink-soft);width:44px;flex-shrink:0}
+.cs-row .cs-card-badge{font-size:10px;padding:2px 6px;border:1px solid var(--rule-strong);border-radius:3px;color:var(--ink-soft);flex-shrink:0}
+.cs-row .cs-merchant{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-row .cat-tag{flex-shrink:0}
+.cs-row .cs-amt{font-family:var(--font-mono);font-weight:600;width:90px;text-align:right;flex-shrink:0}
+.cs-row .cs-del{flex-shrink:0}
 .month-bar:last-child{border-bottom:none}
 .month-label{width:54px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
 .month-track{flex:1;height:6px;background:var(--rule);border-radius:2px;overflow:hidden}
@@ -144,9 +161,12 @@ td{padding:8px 11px;vertical-align:middle}
 .entity-sub{font-size:11px;color:var(--ink-soft);font-family:var(--font-mono)}
 .entity-tag{font-size:11px;font-weight:600;color:var(--navy);background:var(--navy-pale);padding:2px 8px;border-radius:var(--radius);font-family:var(--font-mono)}
 
+@media(max-width:980px){
+  .summary-grid{grid-template-columns:1fr}
+}
 @media(max-width:680px){
   .masthead{padding:16px 18px}.page{padding:16px}.form-row{grid-template-columns:1fr}
-  .summary-grid{grid-template-columns:1fr}.ledger-cards{grid-template-columns:1fr 1fr}
+  .ledger-cards{grid-template-columns:1fr 1fr}
   .ledger-tabs{padding:0 18px}
 }
 </style>
@@ -193,9 +213,13 @@ td{padding:8px 11px;vertical-align:middle}
   <div class="ltab" onclick="showTab('fx')">FX rates</div>
   <div class="ltab" onclick="showTab('summary')">Summary</div>
   <div class="ltab" onclick="showTab('accounts')">Accounts &amp; people</div>
+  <div class="ltab" onclick="showTab('cardspend')">Card spend</div>
 </div>
 
 <div id="page-dashboard" class="page active">
+  <div class="section-label">This month <span id="dash-month-label" style="font-weight:600"></span></div>
+  <div class="ledger-cards" id="dash-cards-month" style="margin-bottom:22px"></div>
+  <div class="section-label">All-time</div>
   <div class="ledger-cards" id="dash-cards"></div>
   <div class="section-label">Recent entries</div>
   <div class="passbook"><table id="dash-table">
@@ -225,7 +249,11 @@ td{padding:8px 11px;vertical-align:middle}
       <option>Allowance</option><option>School</option><option>Insurance</option>
       <option>Property</option><option>Loan</option><option>Gift</option>
       <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
-      <option>Repayment</option><option>Business</option><option>Salary</option><option>Other</option>
+      <option>Repayment</option><option>Business</option><option>Salary</option>
+      <option>Groceries</option><option>Transport</option><option>Dining</option>
+      <option>Subscriptions/Instalments</option><option>Utilities</option><option>Rent</option>
+      <option>Tax</option><option>Travel</option><option>Shopping</option><option>Health</option>
+      <option>Other</option>
     </select>
     <input type="month" id="f-month" onchange="renderTransfers()">
     <button class="btn ghost sm" onclick="clearFilters()">Clear</button>
@@ -261,11 +289,11 @@ td{padding:8px 11px;vertical-align:middle}
     <div>
       <div class="sum-block" style="margin-bottom:18px">
         <div class="sum-block-title">By recipient — SGD out</div>
-        <table class="sum-table" id="sum-by-person" style="width:100%"></table>
+        <div class="sum-table" id="sum-by-person"></div>
       </div>
       <div class="sum-block">
         <div class="sum-block-title">By category — SGD out</div>
-        <table class="sum-table" id="sum-by-cat" style="width:100%"></table>
+        <div class="sum-table" id="sum-by-cat"></div>
       </div>
     </div>
     <div>
@@ -275,7 +303,7 @@ td{padding:8px 11px;vertical-align:middle}
       </div>
       <div class="sum-block">
         <div class="sum-block-title">By currency — actual amounts sent</div>
-        <table class="sum-table" id="sum-by-ccy" style="width:100%"></table>
+        <div class="sum-table" id="sum-by-ccy"></div>
       </div>
     </div>
   </div>
@@ -286,6 +314,97 @@ td{padding:8px 11px;vertical-align:middle}
   <div class="entity-list" id="acc-list" style="margin-bottom:30px"></div>
   <div class="section-label">Recipients reference</div>
   <div class="entity-list" id="ppl-list"></div>
+</div>
+
+<div id="page-cardspend" class="page">
+  <div class="ledger-cards" id="cs-cards"></div>
+  <div class="filter-strip">
+    <select id="cs-card" onchange="renderCardSpend()">
+      <option value="">Both cards</option>
+      <option value="DBS Card">DBS</option>
+      <option value="OCBC Card">OCBC</option>
+    </select>
+    <input type="month" id="cs-month" onchange="renderCardSpend()">
+    <button class="btn ghost sm" onclick="document.getElementById('cs-card').value='';document.getElementById('cs-month').value='';renderCardSpend()">Clear</button>
+    <button class="btn primary sm" style="margin-left:auto;background:var(--rust)" onclick="openBulkImport()">+ Bulk import statement</button>
+    <button class="btn sm" onclick="openAddCardTx()">+ Add entry</button>
+  </div>
+  <div class="summary-grid" style="margin-bottom:26px">
+    <div class="sum-block">
+      <div class="sum-block-title">By category — this view</div>
+      <div style="padding:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div id="cs-donut" style="width:120px;height:120px;border-radius:50%;flex:0 0 auto"></div>
+        <div id="cs-by-cat" style="flex:1 1 200px;min-width:0"></div>
+      </div>
+    </div>
+    <div class="sum-block">
+      <div class="sum-block-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span id="cs-monthly-title">Monthly card spend</span>
+        <span>
+          <button class="btn sm ghost cs-range-btn" id="cs-range-12" onclick="setCsRange(12)">12M</button>
+          <button class="btn sm ghost cs-range-btn" id="cs-range-all" onclick="setCsRange(9999)">All</button>
+        </span>
+      </div>
+      <div id="cs-monthly-bars" style="padding:10px 15px;max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+  <div id="cs-groups"></div>
+</div>
+
+<div class="modal-overlay" id="modal-bulk">
+  <div class="modal" style="width:640px">
+    <div class="modal-header">
+      <div class="modal-title">Bulk import statement</div>
+      <button class="modal-close" onclick="closeModal('modal-bulk')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="bulk-step-paste">
+        <div class="form-row">
+          <div class="field">
+            <label>Card</label>
+            <select id="bulk-card">
+              <option value="DBS Card">DBS</option>
+              <option value="OCBC Card">OCBC</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Statement Year</label>
+            <input type="number" id="bulk-year" value="2026">
+          </div>
+        </div>
+        <div class="field">
+          <label>Upload statement file</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label class="btn sm" style="cursor:pointer;background:var(--rust)">
+              📄 Choose PDF
+              <input type="file" accept="application/pdf" onchange="handleBulkPdf(event)" style="display:none">
+            </label>
+            <label class="btn sm" style="cursor:pointer">
+              🖼️ Choose Screenshot
+              <input type="file" accept="image/*" onchange="handleBulkImage(event)" style="display:none">
+            </label>
+            <span id="bulk-file-status" style="font-size:12px;color:var(--ink-soft)"></span>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--ink-soft);margin:4px 0 12px">— or paste the statement text below —</div>
+        <div class="field">
+          <label>Paste statement text</label>
+          <textarea id="bulk-text" style="height:140px" placeholder="05/07 SIMBATELECOM*128634176 0000000000 SG 29.99&#10;14 MAY 001APPLE R633 MARINA BAY 24 (15) 91.62&#10;13-Dec-25 BUS/MRT 760862316 16.64"></textarea>
+        </div>
+        <div id="bulk-error" style="color:var(--rust-deep);font-size:12px;margin-top:6px"></div>
+      </div>
+      <div id="bulk-step-preview" style="display:none">
+        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px" id="bulk-summary"></div>
+        <div id="bulk-preview-rows" style="max-height:320px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal('modal-bulk')">Cancel</button>
+      <button class="btn ghost" id="bulk-back-btn" style="display:none" onclick="bulkBackToPaste()">Back</button>
+      <button class="btn" id="bulk-parse-btn" onclick="parseBulkStatement()">Parse</button>
+      <button class="btn" id="bulk-confirm-btn" style="display:none" onclick="confirmBulkImport()">Import</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-tx">
@@ -315,7 +434,11 @@ td{padding:8px 11px;vertical-align:middle}
             <option>Allowance</option><option>School</option><option>Insurance</option>
             <option>Property</option><option>Loan</option><option>Gift</option>
             <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
-            <option>Repayment</option><option>Business</option><option>Salary</option><option>Other</option>
+            <option>Repayment</option><option>Business</option><option>Salary</option>
+            <option>Groceries</option><option>Transport</option><option>Dining</option>
+            <option>Subscriptions/Instalments</option><option>Utilities</option><option>Rent</option>
+            <option>Tax</option><option>Travel</option><option>Shopping</option><option>Health</option>
+            <option>Other</option>
           </select>
         </div>
       </div>
@@ -377,7 +500,8 @@ td{padding:8px 11px;vertical-align:middle}
           <label>Platform</label>
           <select id="f-platform">
             <option>Wise</option><option>DBS</option><option>OCBC</option>
-            <option>BPI</option><option>BTCTurk/USDT</option><option>Cash</option><option>Other</option>
+            <option>BPI</option><option>BTCTurk/USDT</option><option>Cash</option>
+            <option>DBS Card</option><option>OCBC Card</option><option>Other</option>
           </select>
         </div>
       </div>
@@ -573,7 +697,7 @@ const PEOPLE_REF = [
 ];
 
 function showTab(name){
-  const names=['dashboard','transfers','fx','summary','accounts'];
+  const names=['dashboard','transfers','fx','summary','accounts','cardspend'];
   document.querySelectorAll('.ltab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -582,6 +706,341 @@ function showTab(name){
   if(name==='fx')renderFX();
   if(name==='summary')renderSummary();
   if(name==='accounts')renderAccounts();
+  if(name==='cardspend')renderCardSpend();
+}
+
+// ===== CARD SPEND: categories, auto-categorization, bulk import parser =====
+const CARD_CATEGORIES = ['Groceries','Transport','Dining','Subscriptions/Instalments','Utilities','Rent','Tax','Travel','Shopping','Health','Other'];
+const CARD_PLATFORMS = ['DBS Card','OCBC Card'];
+
+function guessCardCategory(desc){
+  const d=(desc||'').toUpperCase();
+  if(/\(\d{1,3}\)\s*$/.test((desc||'').trim()))return'Subscriptions/Instalments';
+  const rules=[
+    [/FAIRPRICE|NTUC|COLD STORAGE|GIANT|SHENG SIONG|REDMART|WHOLEFOODS/,'Groceries'],
+    [/GRAB|GOJEK|GOPAY|BUS\/MRT|CABCHARGE|RYDE|COMFORT|TAXI|\bTADA\b/,'Transport'],
+    [/IPP|CASH-ON-INSTAL|INSTALMENT|ANNUAL FEE/,'Subscriptions/Instalments'],
+    [/SP DIGITAL|UTILIT|TELECOM|SIMBA|STARHUB|SINGTEL|\bM1\b/,'Utilities'],
+    [/\bRENT\b|LANDLORD|TENANCY/,'Rent'],
+    [/INCOME TAX|IRAS/,'Tax'],
+    [/TRIP\.COM|TRAVELOKA|AIRLIN|HOTEL|KLOOK|JETSTAR|SCOOT/,'Travel'],
+    [/STARBUCKS|MCDONALD|BURGER KING|KOPITIAM|CAFE|COFFEE|RESTAURANT|BAKERY|\bKFC\b|SUBWAY|PIZZA|BISTRO|KOUFU|CEDELE/,'Dining'],
+    [/GUARDIAN|PHARMAC|MEDICAL|CLINIC|HOSPITAL|DENTAL|HEALTH|SGH\b|SINGHEALTH/,'Health'],
+    [/SHOPEE|LAZADA|AMAZON|UNIQLO|CHALLENGER|DAISO|COURTS|MUJI|DECATHLON|ISETAN/,'Shopping'],
+  ];
+  for(const [re,cat] of rules) if(re.test(d)) return cat;
+  return 'Other';
+}
+
+const CARD_SKIP_PATTERNS=[/PAYMENT BY GIRO/i,/PAYMENT BY INTERNET/i,/AUTO-?PYT/i,/AUTOPAY/i,/PAYMENT DEBITED/i,/LAST MONTH'?S BALANCE/i,/PREVIOUS BALANCE/i,/^SUB-?TOTAL\b/i,/^TOTAL\b/i];
+const CARD_MONTH_ABBR={JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};
+
+function parseCardStatementText(text,year){
+  const lines=text.split(/\r?\n/);
+  const results=[];const skippedLines=[];
+  const slashDateRe=/^(\d{2})\/(\d{2})\s+(.+)$/;
+  const abbrDateRe=/^(\d{2})\s+([A-Za-z]{3})\s+(.+)$/;
+  const hyphenAbbrDateRe=/^(\d{2})-([A-Za-z]{3})(?:-(\d{2,4}))?\s+(.+)$/;
+  const amountRe=/(\(?-?[\d,]+\.\d{2}\)?)\s*(CR)?\s*$/i;
+  for(const raw of lines){
+    const line=raw.trim();if(!line)continue;
+    let dd,mm,rest,rowYear=year;
+    let m=line.match(slashDateRe);
+    if(m){dd=m[1];mm=m[2];rest=m[3];}
+    else{
+      m=line.match(abbrDateRe);
+      if(m){const mo=CARD_MONTH_ABBR[m[2].toUpperCase()];if(mo){dd=m[1];mm=String(mo).padStart(2,'0');rest=m[3];}}
+      else{
+        m=line.match(hyphenAbbrDateRe);
+        if(m){const mo=CARD_MONTH_ABBR[m[2].toUpperCase()];if(mo){dd=m[1];mm=String(mo).padStart(2,'0');rest=m[4];if(m[3])rowYear=m[3].length===2?('20'+m[3]):m[3];}}
+      }
+    }
+    if(!dd)continue;
+    if(CARD_SKIP_PATTERNS.some(p=>p.test(rest))){skippedLines.push(line);continue;}
+    const am=rest.match(amountRe);
+    if(!am){skippedLines.push(line);continue;}
+    const amtRaw=am[1];
+    const negative=/^\(/.test(amtRaw)||/^-/.test(amtRaw)||!!am[2];
+    const num=parseFloat(amtRaw.replace(/[(),]/g,''));
+    if(isNaN(num)){skippedLines.push(line);continue;}
+    let desc=rest.slice(0,rest.length-am[0].length).trim().replace(/\s{2,}/g,' ');
+    if(!desc){skippedLines.push(line);continue;}
+    const moNum=parseInt(mm,10);if(moNum<1||moNum>12){skippedLines.push(line);continue;}
+    results.push({date:`${rowYear}-${mm}-${dd}`,merchant:desc,amount:negative?-num:num,category:guessCardCategory(desc)});
+  }
+  return {results,skippedLines};
+}
+
+function cardTx(t){return t.dir==='OUT'&&CARD_PLATFORMS.includes(t.platform);}
+
+const CARD_CATEGORY_COLORS={
+  'Groceries':'#7FA98F','Transport':'#6C93B8','Dining':'#C9A15A',
+  'Subscriptions/Instalments':'#B48EAD','Utilities':'#9C9C9C','Rent':'#B08968',
+  'Tax':'#6F7B8C','Travel':'#D68C58','Shopping':'#5FA8A0','Health':'#9AA65B','Other':'#8891A0'
+};
+let csMonthRange=12;
+function setCsRange(n){csMonthRange=n;renderCardSpend();}
+
+function renderCardSpend(){
+  const cardFilter=document.getElementById('cs-card').value;
+  const monthFilter=document.getElementById('cs-month').value;
+  let rows=db.transfers.filter(cardTx);
+  if(cardFilter)rows=rows.filter(t=>t.platform===cardFilter);
+  if(monthFilter)rows=rows.filter(t=>t.date.startsWith(monthFilter));
+  rows=rows.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const total=rows.reduce((s,t)=>s+(parseFloat(t.foreignAmt)||0),0);
+  const now=new Date();const thisMonth=now.toISOString().slice(0,7);
+  const monthRows=db.transfers.filter(cardTx).filter(t=>t.date.startsWith(monthFilter||thisMonth));
+  const monthTotal=monthRows.reduce((s,t)=>s+(parseFloat(t.foreignAmt)||0),0);
+  document.getElementById('cs-cards').innerHTML=`
+    <div class="lcard out"><div class="lcard-label">${monthFilter?monthFilter:'This month'}</div><div class="lcard-value">${fmtSGD(monthTotal)}</div><div class="lcard-sub">${monthRows.length} entries</div></div>
+    <div class="lcard out"><div class="lcard-label">Filtered total</div><div class="lcard-value">${fmtSGD(total)}</div><div class="lcard-sub">${rows.length} entries</div></div>
+  `;
+
+  // Category donut + legend
+  const byCat={};rows.forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+(parseFloat(t.foreignAmt)||0)});
+  const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const donut=document.getElementById('cs-donut');
+  if(!catRows.length||!total){
+    donut.style.background='var(--rule)';
+  }else{
+    let acc=0;const stops=[];
+    catRows.forEach(([cat,amt])=>{
+      const start=acc/total*360;acc+=amt;const end=acc/total*360;
+      stops.push(`${CARD_CATEGORY_COLORS[cat]||'#8891A0'} ${start}deg ${end}deg`);
+    });
+    donut.style.background=`conic-gradient(${stops.join(',')})`;
+  }
+  document.getElementById('cs-by-cat').innerHTML=catRows.length?
+    catRows.map(([cat,amt])=>`<div class="sum-row"><span class="sum-label"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${CARD_CATEGORY_COLORS[cat]||'#8891A0'};margin-right:6px"></span>${cat}</span><span class="sum-amount">${fmtSGD(amt)}</span><span class="sum-pct">${total?Math.round(amt/total*100)+'%':''}</span></div>`).join('')
+    :'<div class="sum-row"><span class="sum-label">No entries yet</span></div>';
+
+  // Monthly bars, with range toggle
+  document.getElementById('cs-range-12').classList.toggle('active',csMonthRange===12);
+  document.getElementById('cs-range-all').classList.toggle('active',csMonthRange===9999);
+  const byMonth={};db.transfers.filter(cardTx).forEach(t=>{const m=t.date.slice(0,7);byMonth[m]=(byMonth[m]||0)+(parseFloat(t.foreignAmt)||0)});
+  const allMonths=Object.keys(byMonth).sort().reverse();
+  const months=allMonths.slice(0,csMonthRange);
+  document.getElementById('cs-monthly-title').textContent=`Monthly card spend${csMonthRange===9999?' (all '+allMonths.length+' months)':' (last 12)'}`;
+  const maxM=Math.max(...months.map(m=>byMonth[m]||0),1);
+  document.getElementById('cs-monthly-bars').innerHTML=months.map(m=>{
+    const amt=byMonth[m];const pct=maxM?Math.round((amt/maxM)*100):0;
+    return `<div class="month-bar"><div class="month-label">${m.slice(2)}</div><div class="month-track"><div class="month-fill" style="width:${pct}%"></div></div><div class="month-amount">${fmtSGD(amt)}</div></div>`;
+  }).join('')||'<div style="font-size:11px;color:var(--ink-soft)">No card spend logged yet.</div>';
+
+  // Transactions grouped by month, collapsible
+  const grouped={};
+  rows.forEach(t=>{const m=t.date.slice(0,7);(grouped[m]=grouped[m]||[]).push(t)});
+  const groupKeys=Object.keys(grouped).sort().reverse();
+  const container=document.getElementById('cs-groups');
+  if(!groupKeys.length){
+    container.innerHTML=`<div class="empty-row">No card spend entries yet — use Bulk import or + Add entry.</div>`;
+    return;
+  }
+  container.innerHTML=groupKeys.map((m,i)=>{
+    const items=grouped[m];
+    const gTotal=items.reduce((s,t)=>s+(parseFloat(t.foreignAmt)||0),0);
+    const [yy,mm]=m.split('-');
+    const label=new Date(Number(yy),Number(mm)-1,1).toLocaleDateString('en-SG',{month:'long',year:'numeric'});
+    return `<details class="cs-group"${i<2?' open':''}>
+      <summary><span>${label} · ${items.length} entr${items.length===1?'y':'ies'}</span><span class="cs-group-total">${fmtSGD(gTotal)}</span></summary>
+      ${items.map(t=>`
+        <div class="cs-row">
+          <span class="cs-date">${t.date.slice(8)}</span>
+          <span class="cs-card-badge">${t.platform==='DBS Card'?'DBS':'OCBC'}</span>
+          <span class="cs-merchant">${t.name}</span>
+          <span class="cat-tag" style="background:${(CARD_CATEGORY_COLORS[t.category]||'#8891A0')}22;color:${CARD_CATEGORY_COLORS[t.category]||'#8891A0'}">${t.category}</span>
+          <span class="cs-amt">${fmtSGD(parseFloat(t.foreignAmt)||0)}</span>
+          <button class="btn sm danger cs-del" onclick="deleteTx('${t.id}')">×</button>
+        </div>`).join('')}
+    </details>`;
+  }).join('');
+}
+
+function openAddCardTx(){
+  editingId=null;currentDir='OUT';
+  document.getElementById('modal-tx-title').textContent='New card entry';
+  setDir('OUT');
+  document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
+  ['f-name','f-to-acct','f-remark','f-from-acct'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-rate').value='1';
+  document.getElementById('f-fee').value='0';
+  document.getElementById('f-country').value='SG';
+  document.getElementById('f-ccy-tx').value='SGD';
+  document.getElementById('f-foreign-amt').value='';
+  document.getElementById('f-platform').value='DBS Card';
+  document.getElementById('f-category').value='Groceries';
+  updatePeopleList();updateAcctsList();updateRatePreview();
+  document.getElementById('modal-tx').classList.add('open');
+}
+
+// ===== Bulk import modal =====
+let bulkParsedRows=[];
+// ===== PDF / image upload for bulk import =====
+let pdfJsPromise=null;
+function loadPdfJs(){
+  if(pdfJsPromise)return pdfJsPromise;
+  pdfJsPromise=new Promise((resolve,reject)=>{
+    if(window.pdfjsLib){resolve(window.pdfjsLib);return;}
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=()=>{
+      try{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';resolve(window.pdfjsLib);}
+      catch(e){reject(e);}
+    };
+    s.onerror=()=>reject(new Error('Failed to load PDF library'));
+    document.head.appendChild(s);
+  });
+  return pdfJsPromise;
+}
+async function pdfFileToText(file){
+  const pdfjsLib=await loadPdfJs();
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let fullText='';
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const content=await page.getTextContent();
+    const items=content.items.slice().sort((a,b)=>b.transform[5]-a.transform[5]||a.transform[4]-b.transform[4]);
+    const lines=[];let currentLine=[];let currentY=null;const Y_TOL=2;
+    items.forEach(item=>{
+      const y=item.transform[5];
+      if(currentY===null||Math.abs(y-currentY)<=Y_TOL){currentLine.push(item);currentY=currentY===null?y:(currentY+y)/2;}
+      else{lines.push(currentLine);currentLine=[item];currentY=y;}
+    });
+    if(currentLine.length)lines.push(currentLine);
+    lines.forEach(line=>{
+      line.sort((a,b)=>a.transform[4]-b.transform[4]);
+      let lineText='';let prevEndX=null;
+      line.forEach(item=>{
+        const x=item.transform[4];const fontSize=Math.abs(item.transform[0])||10;
+        if(prevEndX!==null&&x-prevEndX>fontSize*0.28)lineText+=' ';
+        lineText+=item.str;
+        prevEndX=x+(item.width||item.str.length*fontSize*0.5);
+      });
+      fullText+=lineText+'\n';
+    });
+    fullText+='\n';
+  }
+  return fullText
+    .replace(/(\d)\s*\/\s*(\d)/g,'$1/$2')
+    .replace(/\(\s+/g,'(')
+    .replace(/\s+\)/g,')')
+    .replace(/(\d)\s*,\s*(\d{3})/g,'$1,$2')
+    .replace(/(\d)\s*\.\s*(\d{2})(?!\d)/g,'$1.$2');
+}
+
+let tesseractPromise=null;
+function loadTesseract(){
+  if(tesseractPromise)return tesseractPromise;
+  tesseractPromise=new Promise((resolve,reject)=>{
+    if(window.Tesseract){resolve(window.Tesseract);return;}
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js';
+    s.onload=()=>resolve(window.Tesseract);
+    s.onerror=()=>reject(new Error('Failed to load OCR library'));
+    document.head.appendChild(s);
+  });
+  return tesseractPromise;
+}
+async function imageFileToText(file,onProgress){
+  const Tesseract=await loadTesseract();
+  const {data}=await Tesseract.recognize(file,'eng',{
+    logger:m=>{if(onProgress&&m.status==='recognizing text')onProgress(Math.round(m.progress*100));}
+  });
+  return data.text;
+}
+
+function handleBulkPdf(e){
+  const file=e.target.files[0];if(!file)return;
+  const status=document.getElementById('bulk-file-status');
+  status.textContent='Reading PDF…';
+  pdfFileToText(file).then(t=>{
+    document.getElementById('bulk-text').value=t;
+    const yearMatch=t.match(/\b(20\d{2})\b/);
+    if(yearMatch)document.getElementById('bulk-year').value=yearMatch[1];
+    if(/\bDBS\b|\bPOSB\b/i.test(t))document.getElementById('bulk-card').value='DBS Card';
+    else if(/\bOCBC\b/i.test(t))document.getElementById('bulk-card').value='OCBC Card';
+    status.textContent='PDF text extracted — review below, then Parse.';
+  }).catch(()=>{status.textContent="Couldn't read that PDF automatically — try pasting the text instead.";});
+  e.target.value='';
+}
+function handleBulkImage(e){
+  const file=e.target.files[0];if(!file)return;
+  const status=document.getElementById('bulk-file-status');
+  status.textContent='Reading image… 0%';
+  imageFileToText(file,pct=>{status.textContent=`Reading image… ${pct}%`;}).then(t=>{
+    document.getElementById('bulk-text').value=t;
+    status.textContent='Image text extracted (OCR can be imperfect — double-check the preview carefully).';
+  }).catch(()=>{status.textContent="Couldn't read that image automatically — try pasting the text instead.";});
+  e.target.value='';
+}
+
+function openBulkImport(){
+  document.getElementById('bulk-text').value='';
+  document.getElementById('bulk-error').textContent='';
+  document.getElementById('bulk-file-status').textContent='';
+  document.getElementById('bulk-step-paste').style.display='block';
+  document.getElementById('bulk-step-preview').style.display='none';
+  document.getElementById('bulk-back-btn').style.display='none';
+  document.getElementById('bulk-confirm-btn').style.display='none';
+  document.getElementById('bulk-parse-btn').style.display='inline-block';
+  document.getElementById('modal-bulk').classList.add('open');
+}
+function bulkBackToPaste(){
+  document.getElementById('bulk-step-paste').style.display='block';
+  document.getElementById('bulk-step-preview').style.display='none';
+  document.getElementById('bulk-back-btn').style.display='none';
+  document.getElementById('bulk-confirm-btn').style.display='none';
+  document.getElementById('bulk-parse-btn').style.display='inline-block';
+}
+function parseBulkStatement(){
+  const text=document.getElementById('bulk-text').value;
+  const year=parseInt(document.getElementById('bulk-year').value,10)||new Date().getFullYear();
+  const card=document.getElementById('bulk-card').value;
+  if(!text.trim()){document.getElementById('bulk-error').textContent='Paste some statement text first.';return;}
+  const {results,skippedLines}=parseCardStatementText(text,year);
+  if(!results.length){document.getElementById('bulk-error').textContent='No transaction lines found — check the format.';return;}
+  document.getElementById('bulk-error').textContent='';
+  const existing=db.transfers.filter(cardTx);
+  bulkParsedRows=results.map(r=>{
+    const dup=existing.some(t=>t.date===r.date&&Math.abs((parseFloat(t.foreignAmt)||0)-r.amount)<0.01&&t.name.trim().toLowerCase()===r.merchant.trim().toLowerCase());
+    return {...r,card,keep:!dup,dup};
+  });
+  document.getElementById('bulk-summary').textContent=`Found ${results.length} transactions`+(skippedLines.length?` (skipped ${skippedLines.length} non-transaction lines)`:'')+(bulkParsedRows.some(r=>r.dup)?`. ${bulkParsedRows.filter(r=>r.dup).length} look like duplicates and are pre-unchecked.`:'.');
+  renderBulkPreview();
+  document.getElementById('bulk-step-paste').style.display='none';
+  document.getElementById('bulk-step-preview').style.display='block';
+  document.getElementById('bulk-back-btn').style.display='inline-block';
+  document.getElementById('bulk-parse-btn').style.display='none';
+  document.getElementById('bulk-confirm-btn').style.display='inline-block';
+}
+function renderBulkPreview(){
+  document.getElementById('bulk-preview-rows').innerHTML=bulkParsedRows.map((r,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--rule);font-size:12px">
+      <input type="checkbox" ${r.keep?'checked':''} onchange="bulkParsedRows[${i}].keep=this.checked">
+      <span style="font-family:var(--font-mono);color:var(--ink-soft);width:50px">${r.date.slice(5)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.merchant}${r.dup?' <span style="color:var(--rust-deep);font-size:10px">already logged</span>':''}</span>
+      <select style="font-size:11px;padding:3px 5px" onchange="bulkParsedRows[${i}].category=this.value">
+        ${CARD_CATEGORIES.map(c=>`<option ${c===r.category?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <span style="font-family:var(--font-mono);width:80px;text-align:right">${fmtSGD(r.amount)}</span>
+    </div>`).join('');
+}
+function confirmBulkImport(){
+  const toAdd=bulkParsedRows.filter(r=>r.keep);
+  if(!toAdd.length){document.getElementById('bulk-error').textContent='Nothing selected to import.';return;}
+  toAdd.forEach(r=>{
+    db.transfers.push({
+      id:uid(),date:r.date,dir:'OUT',name:r.merchant,country:'SG',
+      fromAcct:r.card==='DBS Card'?'DBS':'OCBC',toAcct:'',ccy:'SGD',foreignAmt:r.amount,rate:1,fee:0,
+      platform:r.card,category:r.category,internal:'N',remark:''
+    });
+  });
+  save();
+  document.getElementById('modal-bulk').classList.remove('open');
+  renderCardSpend();renderDashboard();
 }
 
 function fmtSGD(n){return'S$'+(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})}
@@ -604,16 +1063,26 @@ function renderDashboard(){
   const outAll=db.transfers.filter(t=>t.dir==='OUT'&&t.category!=='Self-Transfer'&&t.internal!=='Y');
   const inAll=db.transfers.filter(t=>t.dir==='IN');
   const outMonth=outAll.filter(t=>t.date.startsWith(thisMonth));
+  const inMonth=inAll.filter(t=>t.date.startsWith(thisMonth));
+  const cardMonth=db.transfers.filter(cardTx).filter(t=>t.date.startsWith(thisMonth));
 
   const totalOut=outAll.reduce((s,t)=>s+totalSGD(t),0);
   const totalIn=inAll.reduce((s,t)=>s+totalSGD(t),0);
   const monthOut=outMonth.reduce((s,t)=>s+totalSGD(t),0);
+  const monthIn=inMonth.reduce((s,t)=>s+totalSGD(t),0);
+  const monthCard=cardMonth.reduce((s,t)=>s+(parseFloat(t.foreignAmt)||0),0);
+  const monthBalance=monthIn-monthOut;
 
+  document.getElementById('dash-month-label').textContent=thisMonth;
+  document.getElementById('dash-cards-month').innerHTML=`
+    <div class="lcard in"><div class="lcard-label">Income</div><div class="lcard-value">${fmtSGD(monthIn)}</div><div class="lcard-sub">${inMonth.length} entries</div></div>
+    <div class="lcard out"><div class="lcard-label">Spending</div><div class="lcard-value">${fmtSGD(monthOut)}</div><div class="lcard-sub">incl. ${fmtSGD(monthCard)} on cards</div></div>
+    <div class="lcard net"><div class="lcard-label">Balance</div><div class="lcard-value" style="color:${monthBalance>=0?'var(--forest-deep)':'var(--rust-deep)'}">${fmtSGD(monthBalance)}</div><div class="lcard-sub">Income minus spending</div></div>
+  `;
   document.getElementById('dash-cards').innerHTML=`
     <div class="lcard out"><div class="lcard-label">Total sent</div><div class="lcard-value">${fmtSGD(totalOut)}</div><div class="lcard-sub">${outAll.length} entries (excl. self-transfers)</div></div>
     <div class="lcard in"><div class="lcard-label">Total received</div><div class="lcard-value">${fmtSGD(totalIn)}</div><div class="lcard-sub">${inAll.length} entries</div></div>
-    <div class="lcard net"><div class="lcard-label">Net position</div><div class="lcard-value">${fmtSGD(totalIn-totalOut)}</div><div class="lcard-sub">In minus out</div></div>
-    <div class="lcard out"><div class="lcard-label">This month, out</div><div class="lcard-value">${fmtSGD(monthOut)}</div><div class="lcard-sub">${thisMonth}</div></div>
+    <div class="lcard net"><div class="lcard-label">Net position</div><div class="lcard-value">${fmtSGD(totalIn-totalOut)}</div><div class="lcard-sub">In minus out, all-time</div></div>
   `;
   const recent=[...db.transfers].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
   document.getElementById('dash-tbody').innerHTML=recent.map(t=>`
@@ -712,24 +1181,24 @@ function deleteRate(id){db.rates=db.rates.filter(r=>r.id!==id);save();renderFX()
 function renderSummary(){
   const outTx=db.transfers.filter(t=>t.dir==='OUT'&&t.internal!=='Y');
   const byPerson={};
-  outTx.forEach(t=>{byPerson[t.name]=(byPerson[t.name]||0)+totalSGD(t)});
+  outTx.filter(t=>!CARD_PLATFORMS.includes(t.platform)).forEach(t=>{byPerson[t.name]=(byPerson[t.name]||0)+totalSGD(t)});
   const personRows=Object.entries(byPerson).sort((a,b)=>b[1]-a[1]);
   const totalPerson=personRows.reduce((s,r)=>s+r[1],0);
   document.getElementById('sum-by-person').innerHTML=
-    personRows.map(([name,amt])=>`<tr><td class="sum-label">${name}</td><td class="sum-amount">${fmtSGD(amt)}</td><td style="color:var(--ink-soft);font-size:11px;text-align:right;font-family:var(--font-mono)">${totalPerson?((amt/totalPerson)*100).toFixed(0)+'%':''}</td></tr>`).join('')+
-    `<tr class="sum-total"><td>Total</td><td class="sum-amount">${fmtSGD(totalPerson)}</td><td></td></tr>`;
+    personRows.map(([name,amt])=>`<div class="sum-row"><span class="sum-label">${name}</span><span class="sum-amount">${fmtSGD(amt)}</span><span class="sum-pct">${totalPerson?((amt/totalPerson)*100).toFixed(0)+'%':''}</span></div>`).join('')+
+    `<div class="sum-row sum-total"><span class="sum-label">Total</span><span class="sum-amount">${fmtSGD(totalPerson)}</span><span class="sum-pct"></span></div>`;
 
   const byCat={};
   outTx.forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+totalSGD(t)});
   const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
   document.getElementById('sum-by-cat').innerHTML=
-    catRows.map(([cat,amt])=>`<tr><td class="sum-label">${cat}</td><td class="sum-amount">${fmtSGD(amt)}</td></tr>`).join('')+
-    `<tr class="sum-total"><td>Total</td><td class="sum-amount">${fmtSGD(catRows.reduce((s,r)=>s+r[1],0))}</td></tr>`;
+    catRows.map(([cat,amt])=>`<div class="sum-row"><span class="sum-label">${cat}</span><span class="sum-amount">${fmtSGD(amt)}</span></div>`).join('')+
+    `<div class="sum-row sum-total"><span class="sum-label">Total</span><span class="sum-amount">${fmtSGD(catRows.reduce((s,r)=>s+r[1],0))}</span></div>`;
 
   const byCcyForeign={};
   outTx.forEach(t=>{byCcyForeign[t.ccy]=(byCcyForeign[t.ccy]||0)+(parseFloat(t.foreignAmt)||0)});
   document.getElementById('sum-by-ccy').innerHTML=
-    Object.entries(byCcyForeign).sort((a,b)=>b[1]-a[1]).map(([ccy,amt])=>`<tr><td class="sum-label"><span class="ccy-tag">${ccy}</span></td><td class="sum-amount">${amt.toLocaleString('en-SG',{minimumFractionDigits:2})}</td></tr>`).join('');
+    Object.entries(byCcyForeign).sort((a,b)=>b[1]-a[1]).map(([ccy,amt])=>`<div class="sum-row"><span class="sum-label"><span class="ccy-tag">${ccy}</span></span><span class="sum-amount">${amt.toLocaleString('en-SG',{minimumFractionDigits:2})}</span></div>`).join('');
 
   const byMonth={};
   outTx.forEach(t=>{const m=t.date.slice(0,7);byMonth[m]=(byMonth[m]||0)+totalSGD(t)});
