@@ -350,7 +350,55 @@ td{padding:8px 11px;vertical-align:middle}
       <div id="cs-monthly-bars" style="padding:10px 15px;max-height:340px;overflow-y:auto"></div>
     </div>
   </div>
+  <div class="section-label" style="margin-top:8px">Instalment plans (IPP) <span style="font-weight:400;text-transform:none">— auto-detected</span></div>
+  <div id="ipp-plans-list" style="margin-bottom:26px"></div>
+  <div class="section-label">Loans</div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <button class="btn sm" onclick="openAddPlan()">+ Add loan</button>
+  </div>
+  <div id="plans-list" style="margin-bottom:30px"></div>
   <div id="cs-groups"></div>
+</div>
+
+<div class="modal-overlay" id="modal-plan">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-plan-title">New loan</div>
+      <button class="modal-close" onclick="closeModal('modal-plan')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field">
+          <label>Name (must match the name used on ledger entries, category = Loan)</label>
+          <input type="text" id="p-name" placeholder="e.g. HDB Loan, Car Loan…">
+        </div>
+      </div>
+      <div class="form-row three">
+        <div class="field">
+          <label>Total principal (SGD)</label>
+          <input type="number" id="p-principal" placeholder="0.00">
+        </div>
+        <div class="field">
+          <label>Total interest (SGD)</label>
+          <input type="number" id="p-interest" placeholder="0" value="0">
+        </div>
+        <div class="field">
+          <label>Tenure (months)</label>
+          <input type="number" id="p-tenure" placeholder="12">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Start date (first payment)</label>
+          <input type="date" id="p-start">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal('modal-plan')">Cancel</button>
+      <button class="btn" onclick="savePlan()">Save plan</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-bulk">
@@ -432,7 +480,7 @@ td{padding:8px 11px;vertical-align:middle}
         </div>
         <div class="field">
           <label>Category</label>
-          <select id="f-category">
+          <select id="f-category" onchange="applyCategoryDefaults()">
             <option>Allowance</option><option>School</option><option>Insurance</option>
             <option>Property</option><option>Loan</option><option>Gift</option>
             <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
@@ -523,7 +571,7 @@ td{padding:8px 11px;vertical-align:middle}
 
 <script>
 const STORE_KEY = 'passbook_v1';
-let db = { transfers: [], rates: [] };
+let db = { transfers: [], rates: [], plans: [] };
 
 // ===== GITHUB SYNC CONFIG (same Worker as EMELCO, separate data file) =====
 const PROXY_URL = 'https://emelco-proxy.rchbas.workers.dev';
@@ -609,6 +657,7 @@ async function loadData(){
       const text = safeAtobUtf8(meta.content);
       const parsed = JSON.parse(text);
       db = parsed && parsed.transfers ? parsed : db;
+      if(!db.plans) db.plans=[];
       localStorage.setItem(STORE_KEY, JSON.stringify(db));
       setSyncStatus('✓ Synced', 'var(--forest-deep)');
     } else if(metaRes.status === 404){
@@ -635,6 +684,9 @@ function loadLocalOrSeed(){
   }
   if(!db.rates || !db.rates.length){
     db.rates = SEED_RATES.map(r=>({...r,id:uid()}));
+  }
+  if(!db.plans){
+    db.plans = [];
   }
 }
 
@@ -821,6 +873,8 @@ let csMonthRange=12;
 function setCsRange(n){csMonthRange=n;renderCardSpend();}
 
 function renderCardSpend(){
+  renderPlans();
+  renderIppPlans();
   const cardFilter=document.getElementById('cs-card').value;
   const monthFilter=document.getElementById('cs-month').value;
   let rows=db.transfers.filter(cardTx);
@@ -910,6 +964,7 @@ function openAddCardTx(){
   document.getElementById('f-foreign-amt').value='';
   document.getElementById('f-platform').value='DBS Card';
   document.getElementById('f-category').value='Groceries';
+  applyCategoryDefaults();
   updatePeopleList();updateAcctsList();updateRatePreview();
   document.getElementById('modal-tx').classList.add('open');
 }
@@ -1083,6 +1138,180 @@ function confirmBulkImport(){
 }
 
 function fmtSGD(n){return'S$'+(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})}
+
+// ===== Payment plans: Loans (manual) =====
+function computePlanProgress(plan){
+  const monthsSet=new Set();
+  db.transfers.forEach(t=>{
+    if(t.category!=='Loan')return;
+    if((t.name||'').trim().toLowerCase()!==(plan.name||'').trim().toLowerCase())return;
+    if(plan.startDate&&t.date<plan.startDate)return;
+    monthsSet.add(t.date.slice(0,7));
+  });
+  const totalMonths=plan.tenureMonths||0;
+  const paidMonths=Math.min(monthsSet.size,totalMonths);
+  const leftMonths=Math.max(totalMonths-paidMonths,0);
+  const frac=totalMonths?paidMonths/totalMonths:0;
+  const principalPaid=(plan.totalPrincipal||0)*frac;
+  const interestPaid=(plan.totalInterest||0)*frac;
+  return{
+    paidMonths,totalMonths,leftMonths,
+    principalPaid,principalLeft:(plan.totalPrincipal||0)-principalPaid,
+    interestPaid,interestLeft:(plan.totalInterest||0)-interestPaid
+  };
+}
+function renderPlans(){
+  const box=document.getElementById('plans-list');
+  if(!box)return;
+  if(!db.plans||!db.plans.length){
+    box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No loans tracked yet — add one to see months left, principal and interest.</div>';
+    return;
+  }
+  box.innerHTML=db.plans.map(p=>{
+    const pr=computePlanProgress(p);
+    return `<div class="ledger-cards" style="margin-bottom:8px">
+      <div class="lcard">
+        <div class="lcard-label">${p.name}</div>
+        <div class="lcard-value">${pr.leftMonths} mo left</div>
+        <div class="lcard-sub">${pr.paidMonths} / ${pr.totalMonths} months paid</div>
+      </div>
+      <div class="lcard">
+        <div class="lcard-label">Principal</div>
+        <div class="lcard-value">${fmtSGD(pr.principalLeft)}</div>
+        <div class="lcard-sub">paid ${fmtSGD(pr.principalPaid)} of ${fmtSGD(p.totalPrincipal||0)}</div>
+      </div>
+      <div class="lcard">
+        <div class="lcard-label">Interest</div>
+        <div class="lcard-value">${fmtSGD(pr.interestLeft)}</div>
+        <div class="lcard-sub">paid ${fmtSGD(pr.interestPaid)} of ${fmtSGD(p.totalInterest||0)}</div>
+      </div>
+      <div class="lcard" style="display:flex;align-items:center;gap:6px">
+        <button class="btn ghost sm" onclick="editPlan('${p.id}')">Edit</button>
+        <button class="btn sm danger" onclick="deletePlan('${p.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+let editingPlanId=null;
+function openAddPlan(){
+  editingPlanId=null;
+  document.getElementById('modal-plan-title').textContent='New loan';
+  document.getElementById('p-name').value='';
+  document.getElementById('p-principal').value='';
+  document.getElementById('p-interest').value='0';
+  document.getElementById('p-tenure').value='';
+  document.getElementById('p-start').value=new Date().toISOString().slice(0,10);
+  document.getElementById('modal-plan').classList.add('open');
+}
+function editPlan(id){
+  const p=(db.plans||[]).find(x=>x.id===id);if(!p)return;
+  editingPlanId=id;
+  document.getElementById('modal-plan-title').textContent='Edit loan';
+  document.getElementById('p-name').value=p.name;
+  document.getElementById('p-principal').value=p.totalPrincipal;
+  document.getElementById('p-interest').value=p.totalInterest||0;
+  document.getElementById('p-tenure').value=p.tenureMonths;
+  document.getElementById('p-start').value=p.startDate;
+  document.getElementById('modal-plan').classList.add('open');
+}
+function savePlan(){
+  const name=document.getElementById('p-name').value.trim();
+  const totalPrincipal=parseFloat(document.getElementById('p-principal').value)||0;
+  const totalInterest=parseFloat(document.getElementById('p-interest').value)||0;
+  const tenureMonths=parseInt(document.getElementById('p-tenure').value,10)||0;
+  const startDate=document.getElementById('p-start').value;
+  if(!name||!tenureMonths||!startDate){alert('Name, tenure and start date are required.');return;}
+  const plan={id:editingPlanId||uid(),name,type:'Loan',totalPrincipal,totalInterest,tenureMonths,startDate};
+  if(!db.plans)db.plans=[];
+  if(editingPlanId){db.plans=db.plans.map(p=>p.id===editingPlanId?plan:p);}
+  else{db.plans.push(plan);}
+  save();closeModal('modal-plan');renderPlans();
+}
+function deletePlan(id){
+  if(confirm('Delete this loan?')){
+    db.plans=(db.plans||[]).filter(p=>p.id!==id);
+    save();renderPlans();
+  }
+}
+
+// ===== IPP instalment plans: auto-detected from "NNN/MMM" pattern on card statement entries =====
+const IPP_COUNTER_RE=/IPP\s*CASH-ON-INSTAL(?:MENTS)?\s+(\d{1,3})\s*\/\s*(\d{1,3})/i;
+const IPP_INTEREST_RE=/CASH\s+ON\s+INSTAL(?:MENT)?\s+INT/i;
+function detectIppSeries(){
+  const principals=[];
+  db.transfers.filter(cardTx).forEach(t=>{
+    const m=(t.name||'').match(IPP_COUNTER_RE);
+    if(m)principals.push({id:t.id,date:t.date,idx:parseInt(m[1],10),tenure:parseInt(m[2],10),amount:parseFloat(t.foreignAmt)||0});
+  });
+  if(!principals.length)return[];
+  principals.sort((a,b)=>a.date.localeCompare(b.date));
+  const interestsByDate={};
+  db.transfers.filter(cardTx).forEach(t=>{
+    if(IPP_INTEREST_RE.test(t.name||'')){
+      const d=t.date;
+      (interestsByDate[d]=interestsByDate[d]||[]).push({amount:parseFloat(t.foreignAmt)||0,used:false});
+    }
+  });
+  const series=[];
+  principals.forEach(p=>{
+    let matched=null;
+    for(const s of series){
+      const last=s.entries[s.entries.length-1];
+      if(s.tenure===p.tenure&&last.idx===p.idx-1){
+        const daysGap=(new Date(p.date)-new Date(last.date))/86400000;
+        if(daysGap>=18&&daysGap<=45){matched=s;break;}
+      }
+    }
+    if(!matched){matched={tenure:p.tenure,entries:[]};series.push(matched);}
+    let interestAmt=0;
+    const cands=interestsByDate[p.date]||[];
+    const free=cands.find(c=>!c.used);
+    if(free){free.used=true;interestAmt=free.amount;}
+    matched.entries.push({date:p.date,idx:p.idx,amount:p.amount,interest:interestAmt});
+  });
+  return series.map(s=>{
+    s.entries.sort((a,b)=>a.date.localeCompare(b.date));
+    const last=s.entries[s.entries.length-1];
+    return{
+      tenure:s.tenure,
+      paidMonths:last.idx,
+      totalMonths:s.tenure,
+      leftMonths:Math.max(s.tenure-last.idx,0),
+      principalPaid:s.entries.reduce((sum,e)=>sum+e.amount,0),
+      interestPaid:s.entries.reduce((sum,e)=>sum+e.interest,0),
+      firstDate:s.entries[0].date,
+      lastDate:last.date,
+      monthlyAmount:last.amount
+    };
+  }).sort((a,b)=>b.lastDate.localeCompare(a.lastDate));
+}
+function renderIppPlans(){
+  const box=document.getElementById('ipp-plans-list');
+  if(!box)return;
+  const series=detectIppSeries();
+  if(!series.length){
+    box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No IPP instalment plans detected yet — they appear automatically once card statement lines with an "NNN/MMM" counter are imported.</div>';
+    return;
+  }
+  box.innerHTML=series.map(s=>`<div class="ledger-cards" style="margin-bottom:8px">
+    <div class="lcard">
+      <div class="lcard-label">IPP plan <span style="font-weight:400">(${s.tenure} mo · ~${fmtSGD(s.monthlyAmount)}/mo)</span></div>
+      <div class="lcard-value">${s.leftMonths} mo left</div>
+      <div class="lcard-sub">${s.paidMonths} / ${s.totalMonths} months paid</div>
+    </div>
+    <div class="lcard">
+      <div class="lcard-label">Principal paid to date</div>
+      <div class="lcard-value">${fmtSGD(s.principalPaid)}</div>
+      <div class="lcard-sub">since ${s.firstDate}</div>
+    </div>
+    <div class="lcard">
+      <div class="lcard-label">Interest paid to date</div>
+      <div class="lcard-value">${fmtSGD(s.interestPaid)}</div>
+      <div class="lcard-sub">last billed ${s.lastDate}</div>
+    </div>
+  </div>`).join('');
+}
+
 function fmtForeign(n,ccy){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy}
 function sgdEquiv(tx){
   if(tx.ccy==='SGD')return parseFloat(tx.foreignAmt)||0;
@@ -1094,7 +1323,7 @@ function getLatestRate(ccy){
   const rows=db.rates.filter(r=>r.ccy===ccy).sort((a,b)=>b.date.localeCompare(a.date));
   return rows.length?parseFloat(rows[0].rate):null;
 }
-function getPeople(){return[...new Set(db.transfers.map(t=>t.name))].sort()}
+function getPeople(){return[...new Set(db.transfers.filter(t=>!cardTx(t)).map(t=>t.name))].sort()}
 
 function renderDashboard(){
   const now=new Date();
@@ -1287,6 +1516,7 @@ function openAddTx(){
   document.getElementById('f-ccy-tx').value='PHP';
   document.getElementById('f-platform').value='Wise';
   document.getElementById('f-category').value='Allowance';
+  applyCategoryDefaults();
   updatePeopleList();updateAcctsList();updateRatePreview();
   document.getElementById('modal-tx').classList.add('open');
 }
@@ -1307,6 +1537,7 @@ function editTx(id){
   document.getElementById('f-fee').value=t.fee||0;
   document.getElementById('f-platform').value=t.platform||'Wise';
   document.getElementById('f-remark').value=t.remark||'';
+  applyCategoryDefaults();
   updatePeopleList();updateAcctsList();updateRatePreview();
   document.getElementById('modal-tx').classList.add('open');
 }
@@ -1316,6 +1547,24 @@ function setDir(dir){
   bOut.className='';bIn.className='';
   if(dir==='OUT'){bOut.classList.add('active','out');document.getElementById('lbl-name').textContent='Recipient name';document.getElementById('lbl-from-acct').textContent='From account (SG)';document.getElementById('lbl-to-acct').textContent='To bank / destination';}
   else{bIn.classList.add('active','in');document.getElementById('lbl-name').textContent='Sender / source';document.getElementById('lbl-from-acct').textContent='From account (origin)';document.getElementById('lbl-to-acct').textContent='To my account';}
+}
+const FIXED_PARTY_CATEGORIES={
+  'Salary':{dir:'IN',name:'MBS'},
+  'Tax':{dir:'OUT',name:'IRAS'}
+};
+function applyCategoryDefaults(){
+  const cat=document.getElementById('f-category').value;
+  const nameField=document.getElementById('f-name');
+  const fixed=FIXED_PARTY_CATEGORIES[cat];
+  if(fixed){
+    setDir(fixed.dir);
+    nameField.value=fixed.name;
+    nameField.readOnly=true;
+    nameField.style.background='var(--paper-alt,#f3efe8)';
+  } else {
+    nameField.readOnly=false;
+    nameField.style.background='';
+  }
 }
 function updateAcctsList(){
   document.getElementById('accts-list').innerHTML=ACCOUNTS.map(a=>`<option value="${a.name}">`).join('');
