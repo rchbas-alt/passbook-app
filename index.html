@@ -1243,7 +1243,7 @@ function deletePlan(id){
 const IPP_COUNTER_RE=/IPP\s*CASH-ON-INSTAL(?:MENTS)?\s+(\d{1,3})\s*\/\s*(\d{1,3})/i;
 const IPP_INTEREST_RE=/CASH\s+ON\s+INSTAL(?:MENT)?\s+INT/i;
 // DBS: "001APPLE R633 MARINA BAY 24 (18)" — leading ref code + merchant + trailing (tenor), no counter, 0% (no interest line)
-const DBS_IPP_RE=/^(\d{2,3})(.+?)(\d{1,3})\s*\((\d{1,3})\)\s*$/;
+const DBS_IPP_RE=/^(.*?)(\d{1,3})\s*\((\d{1,3})\)\s*$/;
 function detectOcbcIppSeries(){
   const principals=[];
   db.transfers.filter(cardTx).forEach(t=>{
@@ -1331,12 +1331,19 @@ function detectDbsIppSeries(){
   db.transfers.filter(cardTx).filter(t=>t.platform==='DBS Card').forEach(t=>{
     const m=(t.name||'').match(DBS_IPP_RE);
     if(!m)return;
-    const merchant=m[2].trim().replace(/\s{2,}/g,' ');
-    const tenure=parseInt(m[3],10);
-    const current=parseInt(m[4],10);
-    const key=merchant.toUpperCase()+'|'+tenure;
-    if(!groups[key])groups[key]={merchant,tenure,entries:[]};
-    groups[key].entries.push({date:t.date,current,amount:parseFloat(t.foreignAmt)||0});
+    const merchant=m[1].trim().replace(/^\d{1,3}\s*/,'').replace(/\s{2,}/g,' ');
+    const tenure=parseInt(m[2],10);
+    const current=parseInt(m[3],10);
+    const amount=parseFloat(t.foreignAmt)||0;
+    // Group by tenure + monthly amount, not merchant text — OCR from image/PDF statement
+    // imports can mangle the merchant string slightly between months (MI STORE -> ML STORE,
+    // PARKWAY -> PARKVVAY, "01" -> "OI"/"OII", "5.88" -> "5 88", etc.), but the tenure and
+    // monthly amount stay identical, so they're the reliable match key. The merchant label
+    // is picked as whichever text variant recurs most.
+    const key=tenure+'|'+Math.round(amount*100);
+    if(!groups[key])groups[key]={tenure,entries:[],merchantCounts:{}};
+    groups[key].entries.push({date:t.date,current,amount,merchant});
+    groups[key].merchantCounts[merchant]=(groups[key].merchantCounts[merchant]||0)+1;
   });
   return Object.values(groups).map(g=>{
     g.entries.sort((a,b)=>a.date.localeCompare(b.date));
@@ -1344,8 +1351,9 @@ function detectDbsIppSeries(){
     const paidMonths=Math.min(last.current,g.tenure);
     const leftMonths=Math.max(g.tenure-paidMonths,0);
     const principalPaid=g.entries.reduce((sum,e)=>sum+e.amount,0);
+    const label=Object.entries(g.merchantCounts).sort((a,b)=>b[1]-a[1]||b[0].length-a[0].length)[0][0];
     return{
-      bank:'DBS',label:g.merchant,
+      bank:'DBS',label,
       tenure:g.tenure,paidMonths,totalMonths:g.tenure,leftMonths,
       principalPaid,interestPaid:0,
       principalLeft:last.amount*leftMonths,interestLeft:0,annualRatePct:null,
