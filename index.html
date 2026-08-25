@@ -257,8 +257,10 @@ td{padding:8px 11px;vertical-align:middle}
     </select>
     <input type="month" id="f-month" onchange="renderTransfers()">
     <button class="btn ghost sm" onclick="clearFilters()">Clear</button>
+    <button class="btn ghost sm" onclick="scanDuplicates()">Scan for duplicates</button>
     <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft)" id="result-count"></span>
   </div>
+  <div id="dup-scan-results" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid var(--rust-deep);background:rgba(180,60,40,0.06);border-radius:8px;font-size:12px"></div>
   <div class="passbook"><table>
     <thead><tr>
       <th></th><th>Date</th><th>Dir</th><th>Name</th><th>From</th><th>To</th>
@@ -772,6 +774,43 @@ function parseCardStatementText(text,year){
 }
 
 function cardTx(t){return t.dir==='OUT'&&CARD_PLATFORMS.includes(t.platform);}
+// Shared duplicate match: same date, same direction, same currency, amount within 0.01, name matches loosely (case/space-insensitive)
+function isDupMatch(a,b){
+  if(a.date!==b.date)return false;
+  if((a.dir||'OUT')!==(b.dir||'OUT'))return false;
+  if((a.ccy||'')!==(b.ccy||''))return false;
+  if(Math.abs((parseFloat(a.foreignAmt)||0)-(parseFloat(b.foreignAmt)||0))>=0.01)return false;
+  return (a.name||'').trim().toLowerCase()===(b.name||'').trim().toLowerCase();
+}
+function findDuplicateOf(candidate,pool,excludeId){
+  return pool.find(t=>t.id!==excludeId&&isDupMatch(t,candidate));
+}
+function scanDuplicates(){
+  const box=document.getElementById('dup-scan-results');
+  const groups=[];
+  const seen=new Set();
+  db.transfers.forEach((t,i)=>{
+    if(seen.has(t.id))return;
+    const matches=db.transfers.filter((o,j)=>j!==i&&!seen.has(o.id)&&isDupMatch(t,o));
+    if(matches.length){
+      const group=[t,...matches];
+      group.forEach(g=>seen.add(g.id));
+      groups.push(group);
+    }
+  });
+  if(!groups.length){
+    box.style.display='block';
+    box.style.borderColor='var(--rule)';
+    box.style.background='transparent';
+    box.textContent='No likely duplicates found.';
+    return;
+  }
+  box.style.display='block';
+  box.style.borderColor='var(--rust-deep)';
+  box.style.background='rgba(180,60,40,0.06)';
+  box.innerHTML=`<div style="margin-bottom:6px;font-weight:600">${groups.length} possible duplicate group${groups.length>1?'s':''} found:</div>`+
+    groups.map(g=>`<div style="margin-bottom:4px">${g.map(t=>`${t.date} · ${t.name} · ${t.ccy} ${t.foreignAmt}${t.remark?' · '+t.remark:''} <button class="btn ghost sm" style="padding:1px 6px;font-size:10px" onclick="deleteTx('${t.id}');scanDuplicates()">delete</button>`).join(' &nbsp;=&nbsp; ')}</div>`).join('');
+}
 
 const CARD_CATEGORY_COLORS={
   'Groceries':'#7FA98F','Transport':'#6C93B8','Dining':'#C9A15A',
@@ -1003,9 +1042,9 @@ function parseBulkStatement(){
   const {results,skippedLines}=parseCardStatementText(text,year);
   if(!results.length){document.getElementById('bulk-error').textContent='No transaction lines found — check the format.';return;}
   document.getElementById('bulk-error').textContent='';
-  const existing=db.transfers.filter(cardTx);
   bulkParsedRows=results.map(r=>{
-    const dup=existing.some(t=>t.date===r.date&&Math.abs((parseFloat(t.foreignAmt)||0)-r.amount)<0.01&&t.name.trim().toLowerCase()===r.merchant.trim().toLowerCase());
+    const cand={date:r.date,dir:'OUT',ccy:'SGD',foreignAmt:r.amount,name:r.merchant};
+    const dup=!!findDuplicateOf(cand,db.transfers);
     return {...r,card,keep:!dup,dup};
   });
   document.getElementById('bulk-summary').textContent=`Found ${results.length} transactions`+(skippedLines.length?` (skipped ${skippedLines.length} non-transaction lines)`:'')+(bulkParsedRows.some(r=>r.dup)?`. ${bulkParsedRows.filter(r=>r.dup).length} look like duplicates and are pre-unchecked.`:'.');
@@ -1330,6 +1369,8 @@ function saveTx(){
     internal: category==='Self-Transfer'?'Y':'N',
     remark:document.getElementById('f-remark').value.trim(),
   };
+  const dupOf=findDuplicateOf(tx,db.transfers,editingId);
+  if(dupOf&&!confirm(`This looks like a duplicate of an existing entry:\n${dupOf.date} · ${dupOf.name} · ${dupOf.ccy} ${dupOf.foreignAmt}\n\nSave anyway?`))return;
   if(editingId){db.transfers=db.transfers.map(t=>t.id===editingId?tx:t);}
   else{db.transfers.push(tx);}
   save();closeModal('modal-tx');renderDashboard();renderTransfers();
