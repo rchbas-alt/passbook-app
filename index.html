@@ -52,6 +52,10 @@ body{font-family:var(--font-sans);background:var(--paper);color:var(--ink);font-
 .lcard.out .lcard-value{color:var(--rust-deep)}
 .lcard.in .lcard-value{color:var(--forest-deep)}
 .lcard.net .lcard-value{color:var(--navy)}
+.plan-cards .lcard{padding:11px 13px}
+.plan-cards .lcard-label{font-size:7px}
+.plan-cards .lcard-value{font-size:18px}
+.plan-cards .lcard-sub{font-size:9px}
 
 /* ═══ PASSBOOK TABLE ═══ */
 .passbook{border:1px solid var(--rule-strong);background:var(--paper-raised);overflow-x:auto}
@@ -1167,7 +1171,7 @@ function renderPlans(){
     box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No loans tracked yet — add one to see months left, principal and interest.</div>';
     return;
   }
-  box.innerHTML=db.plans.map(p=>{
+  box.innerHTML='<div class="plan-cards">'+db.plans.map(p=>{
     const pr=computePlanProgress(p);
     return `<div class="ledger-cards" style="margin-bottom:8px">
       <div class="lcard">
@@ -1190,7 +1194,7 @@ function renderPlans(){
         <button class="btn sm danger" onclick="deletePlan('${p.id}')">Delete</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('')+'</div>';
 }
 let editingPlanId=null;
 function openAddPlan(){
@@ -1234,10 +1238,13 @@ function deletePlan(id){
   }
 }
 
-// ===== IPP instalment plans: auto-detected from "NNN/MMM" pattern on card statement entries =====
+// ===== IPP instalment plans: auto-detected from card statement patterns =====
+// OCBC: "IPP CASH-ON-INSTALMENTS 017/060" (current/total counter + separate interest line)
 const IPP_COUNTER_RE=/IPP\s*CASH-ON-INSTAL(?:MENTS)?\s+(\d{1,3})\s*\/\s*(\d{1,3})/i;
 const IPP_INTEREST_RE=/CASH\s+ON\s+INSTAL(?:MENT)?\s+INT/i;
-function detectIppSeries(){
+// DBS: "001APPLE R633 MARINA BAY 24 (18)" — leading ref code + merchant + trailing (tenor), no counter, 0% (no interest line)
+const DBS_IPP_RE=/^(\d{2,3})(.+?)(\d{1,3})\s*\((\d{1,3})\)\s*$/;
+function detectOcbcIppSeries(){
   const principals=[];
   db.transfers.filter(cardTx).forEach(t=>{
     const m=(t.name||'').match(IPP_COUNTER_RE);
@@ -1269,47 +1276,115 @@ function detectIppSeries(){
     if(free){free.used=true;interestAmt=free.amount;}
     matched.entries.push({date:p.date,idx:p.idx,amount:p.amount,interest:interestAmt});
   });
+  // Estimate the monthly reducing-balance rate purely from the ledger's own consecutive-month
+  // interest figures (level-payment loan: interest_k = r*balance_(k-1), principal_k = M - interest_k).
+  // No external rate/Excel input needed.
+  function estimateAmort(entries){
+    let mSum=0,mCount=0;
+    entries.forEach(e=>{const M=e.amount+e.interest;if(M>0){mSum+=M;mCount++;}});
+    const rs=[];
+    for(let i=1;i<entries.length;i++){
+      const prev=entries[i-1],cur=entries[i];
+      if(cur.idx!==prev.idx+1)continue;
+      const Mprev=prev.amount+prev.interest;
+      const denom=prev.interest-Mprev;
+      if(!denom)continue;
+      const r=(cur.interest-prev.interest)/denom;
+      if(r>0&&r<0.05)rs.push(r);
+    }
+    if(!rs.length||!mCount)return null;
+    return{r:rs.reduce((a,b)=>a+b,0)/rs.length,M:mSum/mCount};
+  }
   return series.map(s=>{
     s.entries.sort((a,b)=>a.date.localeCompare(b.date));
     const last=s.entries[s.entries.length-1];
+    const leftMonths=Math.max(s.tenure-last.idx,0);
+    const principalPaid=s.entries.reduce((sum,e)=>sum+e.amount,0);
+    const interestPaid=s.entries.reduce((sum,e)=>sum+e.interest,0);
+    let principalLeft=null,interestLeft=null,annualRatePct=null;
+    if(leftMonths===0){principalLeft=0;interestLeft=0;}
+    else{
+      const est=estimateAmort(s.entries);
+      if(est){
+        const{r,M}=est;
+        principalLeft=M*(1-Math.pow(1+r,-leftMonths))/r;
+        interestLeft=leftMonths*M-principalLeft;
+        annualRatePct=r*12*100;
+      }
+    }
     return{
+      bank:'OCBC',label:'IPP plan',
       tenure:s.tenure,
       paidMonths:last.idx,
       totalMonths:s.tenure,
-      leftMonths:Math.max(s.tenure-last.idx,0),
-      principalPaid:s.entries.reduce((sum,e)=>sum+e.amount,0),
-      interestPaid:s.entries.reduce((sum,e)=>sum+e.interest,0),
+      leftMonths,
+      principalPaid,interestPaid,
+      principalLeft,interestLeft,annualRatePct,
       firstDate:s.entries[0].date,
       lastDate:last.date,
       monthlyAmount:last.amount
     };
-  }).sort((a,b)=>b.lastDate.localeCompare(a.lastDate));
+  });
+}
+function detectDbsIppSeries(){
+  const groups={};
+  db.transfers.filter(cardTx).filter(t=>t.platform==='DBS Card').forEach(t=>{
+    const m=(t.name||'').match(DBS_IPP_RE);
+    if(!m)return;
+    const merchant=m[2].trim().replace(/\s{2,}/g,' ');
+    const tenure=parseInt(m[3],10);
+    const current=parseInt(m[4],10);
+    const key=merchant.toUpperCase()+'|'+tenure;
+    if(!groups[key])groups[key]={merchant,tenure,entries:[]};
+    groups[key].entries.push({date:t.date,current,amount:parseFloat(t.foreignAmt)||0});
+  });
+  return Object.values(groups).map(g=>{
+    g.entries.sort((a,b)=>a.date.localeCompare(b.date));
+    const last=g.entries[g.entries.length-1];
+    const paidMonths=Math.min(last.current,g.tenure);
+    const leftMonths=Math.max(g.tenure-paidMonths,0);
+    const principalPaid=g.entries.reduce((sum,e)=>sum+e.amount,0);
+    return{
+      bank:'DBS',label:g.merchant,
+      tenure:g.tenure,paidMonths,totalMonths:g.tenure,leftMonths,
+      principalPaid,interestPaid:0,
+      principalLeft:last.amount*leftMonths,interestLeft:0,annualRatePct:null,
+      firstDate:g.entries[0].date,lastDate:last.date,monthlyAmount:last.amount
+    };
+  });
 }
 function renderIppPlans(){
   const box=document.getElementById('ipp-plans-list');
   if(!box)return;
-  const series=detectIppSeries();
+  const series=[...detectOcbcIppSeries(),...detectDbsIppSeries()].sort((a,b)=>b.lastDate.localeCompare(a.lastDate));
   if(!series.length){
-    box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No IPP instalment plans detected yet — they appear automatically once card statement lines with an "NNN/MMM" counter are imported.</div>';
+    box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No IPP instalment plans detected yet — they appear automatically once card statement lines with an instalment tag are imported.</div>';
     return;
   }
-  box.innerHTML=series.map(s=>`<div class="ledger-cards" style="margin-bottom:8px">
+  box.innerHTML='<div class="plan-cards">'+series.map(s=>{
+    const rateNote=s.annualRatePct!=null?` · ~${s.annualRatePct.toFixed(1)}% p.a. (estimated)`:(s.bank==='DBS'?' · 0%':'');
+    const principalLeftStr=s.principalLeft!=null?fmtSGD(s.principalLeft):'—';
+    const interestLeftStr=s.interestLeft!=null?fmtSGD(s.interestLeft):'—';
+    const totalPrincipal=s.principalLeft!=null?s.principalPaid+s.principalLeft:null;
+    const totalInterest=s.interestLeft!=null?s.interestPaid+s.interestLeft:null;
+    return`<div class="ledger-cards" style="margin-bottom:8px">
     <div class="lcard">
-      <div class="lcard-label">IPP plan <span style="font-weight:400">(${s.tenure} mo · ~${fmtSGD(s.monthlyAmount)}/mo)</span></div>
+      <div class="lcard-label">${s.bank} · ${s.label} <span style="font-weight:400">(${s.tenure} mo · ~${fmtSGD(s.monthlyAmount)}/mo${rateNote})</span></div>
       <div class="lcard-value">${s.leftMonths} mo left</div>
       <div class="lcard-sub">${s.paidMonths} / ${s.totalMonths} months paid</div>
     </div>
     <div class="lcard">
-      <div class="lcard-label">Principal paid to date</div>
-      <div class="lcard-value">${fmtSGD(s.principalPaid)}</div>
-      <div class="lcard-sub">since ${s.firstDate}</div>
+      <div class="lcard-label">Principal left</div>
+      <div class="lcard-value">${principalLeftStr}</div>
+      <div class="lcard-sub">paid ${fmtSGD(s.principalPaid)}${totalPrincipal!=null?' of '+fmtSGD(totalPrincipal):''}</div>
     </div>
     <div class="lcard">
-      <div class="lcard-label">Interest paid to date</div>
-      <div class="lcard-value">${fmtSGD(s.interestPaid)}</div>
-      <div class="lcard-sub">last billed ${s.lastDate}</div>
+      <div class="lcard-label">Interest left</div>
+      <div class="lcard-value">${interestLeftStr}</div>
+      <div class="lcard-sub">paid ${fmtSGD(s.interestPaid)}${totalInterest!=null?' of '+fmtSGD(totalInterest):''}</div>
     </div>
-  </div>`).join('');
+  </div>`;
+  }).join('')+'</div>';
 }
 
 function fmtForeign(n,ccy){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy}
