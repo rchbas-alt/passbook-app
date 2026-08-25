@@ -1326,11 +1326,17 @@ function detectOcbcIppSeries(){
     };
   });
 }
+// Catches the closing payment on a DBS instalment loan, which uses a different format entirely:
+// no counter, just the words "LAST INSTALMENT" — e.g. "01 IL (12M) 5.88%PA+2% (LAST INSTALMENT)".
+// Tenure is read from the "(NNM)" fragment instead of the trailing counter.
+const DBS_LAST_RE=/\((\d{1,3})M\)[\s\S]*\(\s*LAST\s+INSTAL(?:L?MENT)?\s*\)\s*$/i;
 function detectDbsIppSeries(){
   const groups={};
-  db.transfers.filter(cardTx).filter(t=>t.platform==='DBS Card').forEach(t=>{
+  const dbsEntries=db.transfers.filter(cardTx).filter(t=>t.platform==='DBS Card');
+  const unmatched=[];
+  dbsEntries.forEach(t=>{
     const m=(t.name||'').match(DBS_IPP_RE);
-    if(!m)return;
+    if(!m){unmatched.push(t);return;}
     const merchant=m[1].trim().replace(/^\d{1,3}\s*/,'').replace(/\s{2,}/g,' ');
     const tenure=parseInt(m[2],10);
     const current=parseInt(m[3],10);
@@ -1344,6 +1350,29 @@ function detectDbsIppSeries(){
     if(!groups[key])groups[key]={tenure,entries:[],merchantCounts:{}};
     groups[key].entries.push({date:t.date,current,amount,merchant});
     groups[key].merchantCounts[merchant]=(groups[key].merchantCounts[merchant]||0)+1;
+  });
+  // Second pass: attach "LAST INSTALMENT" closing entries. Since the closing amount can differ
+  // slightly from the regular monthly amount (rounding true-up), match by tenure and by finding
+  // the group that's currently one month short of complete, rather than by exact amount.
+  unmatched.forEach(t=>{
+    const m=(t.name||'').match(DBS_LAST_RE);
+    if(!m)return;
+    const tenure=parseInt(m[1],10);
+    const amount=parseFloat(t.foreignAmt)||0;
+    const candidates=Object.values(groups).filter(g=>{
+      if(g.tenure!==tenure)return false;
+      const curMax=Math.max(...g.entries.map(e=>e.current));
+      return curMax===tenure-1;
+    });
+    let target=candidates[0];
+    if(!target){
+      const key=tenure+'|'+Math.round(amount*100);
+      if(!groups[key])groups[key]={tenure,entries:[],merchantCounts:{}};
+      target=groups[key];
+    }
+    const merchant=(t.name||'').replace(/\(\s*LAST\s+INSTAL(?:L?MENT)?\s*\)\s*$/i,'').trim().replace(/^\d{1,3}\s*/,'').replace(/\s{2,}/g,' ');
+    target.entries.push({date:t.date,current:tenure,amount,merchant});
+    target.merchantCounts[merchant]=(target.merchantCounts[merchant]||0)+1;
   });
   return Object.values(groups).map(g=>{
     g.entries.sort((a,b)=>a.date.localeCompare(b.date));
