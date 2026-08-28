@@ -262,6 +262,7 @@ td{padding:8px 11px;vertical-align:middle}
     <input type="month" id="f-month" onchange="renderTransfers()">
     <button class="btn ghost sm" onclick="clearFilters()">Clear</button>
     <button class="btn ghost sm" onclick="scanDuplicates()">Scan for duplicates</button>
+    <button class="btn ghost sm" onclick="showDismissedDupes()">Reviewed duplicates</button>
     <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft)" id="result-count"></span>
   </div>
   <div id="dup-scan-results" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid var(--rust-deep);background:rgba(180,60,40,0.06);border-radius:8px;font-size:12px"></div>
@@ -662,6 +663,7 @@ async function loadData(){
       const parsed = JSON.parse(text);
       db = parsed && parsed.transfers ? parsed : db;
       if(!db.plans) db.plans=[];
+      if(!db.dismissedDupes) db.dismissedDupes=[];
       localStorage.setItem(STORE_KEY, JSON.stringify(db));
       setSyncStatus('✓ Synced', 'var(--forest-deep)');
     } else if(metaRes.status === 404){
@@ -691,6 +693,9 @@ function loadLocalOrSeed(){
   }
   if(!db.plans){
     db.plans = [];
+  }
+  if(!db.dismissedDupes){
+    db.dismissedDupes = [];
   }
 }
 
@@ -841,6 +846,46 @@ function isDupMatch(a,b){
 function findDuplicateOf(candidate,pool,excludeId){
   return pool.find(t=>t.id!==excludeId&&isDupMatch(t,candidate));
 }
+// A group's fingerprint is its member ids, sorted — stable as long as those exact
+// records still exist. If any record in a dismissed group is later edited/deleted,
+// its id set changes and it will naturally resurface for review.
+function dupFingerprint(group){
+  return group.map(t=>t.id).sort().join('|');
+}
+function acknowledgeDupGroup(fp){
+  if(!db.dismissedDupes) db.dismissedDupes=[];
+  if(!db.dismissedDupes.includes(fp)) db.dismissedDupes.push(fp);
+  save();
+  scanDuplicates();
+}
+function unacknowledgeDupGroup(fp){
+  db.dismissedDupes=(db.dismissedDupes||[]).filter(x=>x!==fp);
+  save();
+  showDismissedDupes();
+}
+// Lists previously-acknowledged groups (reconstructed from their saved id sets) so
+// nothing stays hidden forever without a way to bring it back into view.
+function showDismissedDupes(){
+  const box=document.getElementById('dup-scan-results');
+  const fps=db.dismissedDupes||[];
+  box.style.display='block';
+  box.style.borderColor='var(--rule)';
+  box.style.background='transparent';
+  if(!fps.length){
+    box.textContent='No acknowledged duplicate groups yet.';
+    return;
+  }
+  const byId={};
+  db.transfers.forEach(t=>byId[t.id]=t);
+  const rows=fps.map(fp=>{
+    const ids=fp.split('|');
+    const txs=ids.map(id=>byId[id]).filter(Boolean);
+    if(!txs.length) return null; // records since deleted — nothing to show
+    const line=txs.map(t=>`${t.date} · ${t.name} · ${t.ccy} ${t.foreignAmt}${t.remark?' · '+t.remark:''}`).join(' &nbsp;=&nbsp; ');
+    return `<div style="margin-bottom:4px">${line} &nbsp; <button class="btn ghost sm" style="padding:1px 6px;font-size:10px" onclick="unacknowledgeDupGroup('${fp}')">un-acknowledge</button></div>`;
+  }).filter(Boolean);
+  box.innerHTML=`<div style="margin-bottom:6px;font-weight:600">${rows.length} acknowledged duplicate group${rows.length!==1?'s':''}:</div>`+rows.join('');
+}
 function scanDuplicates(){
   const box=document.getElementById('dup-scan-results');
   const groups=[];
@@ -854,18 +899,25 @@ function scanDuplicates(){
       groups.push(group);
     }
   });
-  if(!groups.length){
+  const dismissed=new Set(db.dismissedDupes||[]);
+  const activeGroups=groups.filter(g=>!dismissed.has(dupFingerprint(g)));
+  const dismissedCount=groups.length-activeGroups.length;
+  if(!activeGroups.length){
     box.style.display='block';
     box.style.borderColor='var(--rule)';
     box.style.background='transparent';
-    box.textContent='No likely duplicates found.';
+    box.textContent='No likely duplicates found.'+(dismissedCount?` (${dismissedCount} group${dismissedCount>1?'s':''} previously acknowledged and hidden.)`:'');
     return;
   }
   box.style.display='block';
   box.style.borderColor='var(--rust-deep)';
   box.style.background='rgba(180,60,40,0.06)';
-  box.innerHTML=`<div style="margin-bottom:6px;font-weight:600">${groups.length} possible duplicate group${groups.length>1?'s':''} found:</div>`+
-    groups.map(g=>`<div style="margin-bottom:4px">${g.map(t=>`${t.date} · ${t.name} · ${t.ccy} ${t.foreignAmt}${t.remark?' · '+t.remark:''} <button class="btn ghost sm" style="padding:1px 6px;font-size:10px" onclick="deleteTx('${t.id}');scanDuplicates()">delete</button>`).join(' &nbsp;=&nbsp; ')}</div>`).join('');
+  box.innerHTML=`<div style="margin-bottom:6px;font-weight:600">${activeGroups.length} possible duplicate group${activeGroups.length>1?'s':''} found${dismissedCount?` (${dismissedCount} more previously acknowledged and hidden)`:''}:</div>`+
+    activeGroups.map(g=>{
+      const fp=dupFingerprint(g);
+      const rows=g.map(t=>`${t.date} · ${t.name} · ${t.ccy} ${t.foreignAmt}${t.remark?' · '+t.remark:''} <button class="btn ghost sm" style="padding:1px 6px;font-size:10px" onclick="deleteTx('${t.id}');scanDuplicates()">delete</button>`).join(' &nbsp;=&nbsp; ');
+      return `<div style="margin-bottom:4px">${rows} &nbsp; <button class="btn ghost sm" style="padding:1px 6px;font-size:10px" onclick="acknowledgeDupGroup('${fp}')" title="These are legitimate, stop flagging this group">acknowledge</button></div>`;
+    }).join('');
 }
 
 const CARD_CATEGORY_COLORS={
