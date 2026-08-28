@@ -150,6 +150,14 @@ td{padding:8px 11px;vertical-align:middle}
 .cs-row .cat-tag{flex-shrink:0}
 .cs-row .cs-amt{font-family:var(--font-mono);font-weight:600;width:90px;text-align:right;flex-shrink:0}
 .cs-row .cs-del{flex-shrink:0}
+/* Ledger (main transfers) collapsible-group row — richer than cs-row, still same group/summary shell */
+.ldg-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-top:1px solid var(--rule);font-size:12px;flex-wrap:wrap}
+.ldg-row .ldg-date{font-family:var(--font-mono);color:var(--ink-soft);width:70px;flex-shrink:0}
+.ldg-row .ldg-name{flex:1 1 140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ldg-row .ldg-acct{font-size:10.5px;color:var(--ink-soft);flex-shrink:0;width:auto}
+.ldg-row .ldg-remark{flex:1 1 160px;min-width:0;font-size:11px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ldg-row .ldg-amt{font-family:var(--font-mono);font-weight:600;width:100px;text-align:right;flex-shrink:0}
+.ldg-row .ldg-actions{flex-shrink:0;display:flex;gap:5px;margin-left:auto}
 .month-bar:last-child{border-bottom:none}
 .month-label{width:54px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
 .month-track{flex:1;height:6px;background:var(--rule);border-radius:2px;overflow:hidden}
@@ -266,16 +274,7 @@ td{padding:8px 11px;vertical-align:middle}
     <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft)" id="result-count"></span>
   </div>
   <div id="dup-scan-results" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid var(--rust-deep);background:rgba(180,60,40,0.06);border-radius:8px;font-size:12px"></div>
-  <div class="passbook"><table>
-    <thead><tr>
-      <th></th><th>Date</th><th>Dir</th><th>Name</th><th>From</th><th>To</th>
-      <th>Ccy</th><th style="text-align:right">Foreign amt</th>
-      <th style="text-align:right">Rate (1SGD=)</th>
-      <th style="text-align:right">SGD equiv</th><th>Fee</th>
-      <th>Category</th><th>Remark</th><th style="position:sticky;right:0;background:#efe7d5;box-shadow:-4px 0 4px -2px rgba(0,0,0,.08)"></th>
-    </tr></thead>
-    <tbody id="tx-tbody"></tbody>
-  </table></div>
+  <div id="tx-groups"></div>
 </div>
 
 <div id="page-fx" class="page">
@@ -1547,30 +1546,39 @@ function renderTransfers(){
   if(month)rows=rows.filter(t=>t.date.startsWith(month));
   if(search)rows=rows.filter(t=>(t.name+(t.toAcct||'')+(t.fromAcct||'')+(t.remark||'')+t.category).toLowerCase().includes(search));
   document.getElementById('result-count').textContent=rows.length+' entries';
-  const tbody=document.getElementById('tx-tbody');
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13"><div class="empty-row">No entries match these filters.</div></td></tr>`;return;}
-  tbody.innerHTML=rows.map(t=>`
-    <tr>
-      <td class="flag-rail ${t.dir==='OUT'?'out-rail':'in-rail'}"></td>
-      <td style="white-space:nowrap;font-family:var(--font-mono);font-size:11.5px">${t.date}</td>
-      <td><span class="stamp ${t.dir.toLowerCase()}">${t.dir}</span></td>
-      <td><strong>${t.name}</strong>${t.internal==='Y'?' <span style="color:var(--ink-soft);font-size:10px">(self)</span>':''}</td>
-      <td style="font-size:11px;color:var(--ink-soft)">${t.fromAcct||'—'}</td>
-      <td style="font-size:11px;color:var(--ink-soft)">${t.toAcct||'—'}</td>
-      <td><span class="ccy-tag">${t.ccy}</span></td>
-      <td style="text-align:right" class="amt ${t.dir==='OUT'?'out':'in'}">${(parseFloat(t.foreignAmt)||0).toLocaleString('en-SG',{minimumFractionDigits:2})}</td>
-      <td style="text-align:right;font-size:11px;color:var(--ink-soft);font-family:var(--font-mono)">${t.ccy==='SGD'?'—':(parseFloat(t.rate)||getLatestRate(t.ccy)||0).toFixed(4)}</td>
-      <td style="text-align:right" class="amt ${t.dir==='OUT'?'out':'in'}">${fmtSGD(sgdEquiv(t))}</td>
-      <td style="text-align:right;font-size:11px;font-family:var(--font-mono)">${t.fee?fmtSGD(t.fee):'—'}</td>
-      <td><span class="cat-tag">${t.category}</span></td>
-      <td style="font-size:11px;color:var(--ink-soft);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.remark||'').replace(/"/g,'&quot;')}">${t.remark||''}</td>
-      <td style="white-space:nowrap;position:sticky;right:0;background:var(--paper-raised);box-shadow:-4px 0 4px -2px rgba(0,0,0,.08)">
-        <div style="display:flex;gap:5px">
-          <button class="btn ghost sm" onclick="editTx('${t.id}')" title="Edit" style="padding:4px 8px">✎</button>
-          <button class="btn sm danger" onclick="deleteTx('${t.id}')" title="Delete">×</button>
-        </div>
-      </td>
-    </tr>`).join('');
+  const container=document.getElementById('tx-groups');
+  if(!rows.length){container.innerHTML=`<div class="empty-row">No entries match these filters.</div>`;return;}
+
+  const grouped={};
+  rows.forEach(t=>{const m=t.date.slice(0,7);(grouped[m]=grouped[m]||[]).push(t)});
+  const groupKeys=Object.keys(grouped).sort().reverse();
+
+  container.innerHTML=groupKeys.map((m,i)=>{
+    const items=grouped[m];
+    const gTotal=items.reduce((s,t)=>s+(t.dir==='OUT'?-1:1)*sgdEquiv(t),0);
+    const [yy,mm]=m.split('-');
+    const label=new Date(Number(yy),Number(mm)-1,1).toLocaleDateString('en-SG',{month:'long',year:'numeric'});
+    return `<details class="cs-group"${i<2?' open':''}>
+      <summary><span>${label} · ${items.length} entr${items.length===1?'y':'ies'}</span><span class="cs-group-total">${fmtSGD(gTotal)}</span></summary>
+      ${items.map(t=>`
+        <div class="ldg-row">
+          <span class="flag-rail ${t.dir==='OUT'?'out-rail':'in-rail'}" style="align-self:stretch"></span>
+          <span class="ldg-date">${t.date.slice(8)}</span>
+          <span class="stamp ${t.dir.toLowerCase()}">${t.dir}</span>
+          <span class="ldg-name"><strong>${t.name}</strong>${t.internal==='Y'?' <span style="color:var(--ink-soft);font-size:10px">(self)</span>':''}</span>
+          <span class="ldg-acct">${t.fromAcct||'—'} → ${t.toAcct||'—'}</span>
+          <span class="ccy-tag">${t.ccy}</span>
+          <span class="ldg-amt amt ${t.dir==='OUT'?'out':'in'}">${(parseFloat(t.foreignAmt)||0).toLocaleString('en-SG',{minimumFractionDigits:2})}</span>
+          <span class="ldg-amt amt ${t.dir==='OUT'?'out':'in'}" title="SGD equivalent">${fmtSGD(sgdEquiv(t))}</span>
+          <span class="cat-tag">${t.category}</span>
+          <span class="ldg-remark" title="${(t.remark||'').replace(/"/g,'&quot;')}">${t.remark||''}</span>
+          <span class="ldg-actions">
+            <button class="btn ghost sm" onclick="editTx('${t.id}')" title="Edit" style="padding:4px 8px">✎</button>
+            <button class="btn sm danger" onclick="deleteTx('${t.id}')" title="Delete">×</button>
+          </span>
+        </div>`).join('')}
+    </details>`;
+  }).join('');
 }
 
 function renderFX(){
