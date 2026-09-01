@@ -545,7 +545,7 @@ td{padding:8px 11px;vertical-align:middle}
         </div>
         <div class="field">
           <label>Fee (SGD)</label>
-          <input type="number" id="f-fee" placeholder="0" value="0">
+          <input type="number" id="f-fee" placeholder="0" value="0" oninput="updateRatePreview()">
         </div>
       </div>
       <div class="form-row">
@@ -1789,9 +1789,10 @@ function updateRatePreview(){
   const autoRate=getLatestRate(ccy);
   const rate=manualRate||autoRate;
   const amt=parseFloat(document.getElementById('f-foreign-amt').value);
+  const fee=parseFloat(document.getElementById('f-fee').value)||0;
   let preview='';
   if(rate&&amt){
-    const sgd=ccy==='SGD'?amt:amt/rate;
+    const sgd=(ccy==='SGD'?amt:amt/rate)+fee;
     preview=`≈ ${fmtSGD(sgd)}`+(!manualRate&&autoRate?' (using FX table rate)':'');
   } else if(autoRate){
     preview=`FX table: 1 SGD = ${autoRate} ${ccy}`;
