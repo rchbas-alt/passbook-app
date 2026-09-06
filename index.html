@@ -138,7 +138,12 @@ td{padding:8px 11px;vertical-align:middle}
 .sum-row .sum-sgd{flex:0 0 auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);width:110px;text-align:right;white-space:nowrap}
 /* ═══ PEOPLE TAB ═══ */
 .ppl-card{background:var(--paper-raised);border:1px solid var(--rule-strong);margin-bottom:22px}
-.ppl-card-head{padding:12px 16px;background:#efe7d5;border-bottom:1px solid var(--rule-strong);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.ppl-card-head{padding:12px 16px;background:#efe7d5;border-bottom:1px solid var(--rule-strong);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;cursor:pointer;user-select:none}
+.ppl-card-head:hover{background:#e8ddc8}
+.ppl-card-head .ppl-chevron{margin-left:auto;font-size:13px;color:var(--ink-soft);transition:transform .2s}
+.ppl-card.collapsed .ppl-chevron{transform:rotate(-90deg)}
+.ppl-card-body{display:block}
+.ppl-card.collapsed .ppl-card-body{display:none}
 .ppl-card-name{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--navy)}
 .ppl-card-meta{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft)}
 .ppl-card-totals{display:flex;gap:18px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--rule);background:var(--navy-pale)}
@@ -900,11 +905,14 @@ function renderPeople(){
     const ccuC={};txs.forEach(t=>{ccuC[t.ccy]=(ccuC[t.ccy]||0)+1});
     const domCcy=Object.entries(ccuC).sort((a,b)=>b[1]-a[1])[0][0];
     const country=txs[0].country||'';
-    html+=`<div class="ppl-card">
-      <div class="ppl-card-head">
+    const anyFilter2=search||dirF||ccyF||fromF||untilF;
+    html+=`<div class="ppl-card ${anyFilter2?'':'collapsed'}" id="ppl-card-${name.replace(/\s+/g,'_')}">
+      <div class="ppl-card-head" onclick="this.closest('.ppl-card').classList.toggle('collapsed')">
         <span class="ppl-card-name">${name}</span>
         <span class="ppl-card-meta">${country} · ${txs.length} entr${txs.length===1?'y':'ies'} · ${domCcy}</span>
+        <span class="ppl-chevron">▾</span>
       </div>
+      <div class="ppl-card-body">
       <div class="ppl-card-totals">
         <div class="ppl-total-chip"><span class="chip-label">Sent out </span><span class="chip-val">${fmtSGD(totalOut)}</span></div>
         ${totalInSGD?`<div class="ppl-total-chip"><span class="chip-label">Received back </span><span class="chip-val">${fmtSGD(totalInSGD)}</span></div>`:''}
@@ -931,7 +939,7 @@ function renderPeople(){
       <span class="tx-sgd" style="font-weight:700;color:var(--navy)">
         ${filteredOut?`− ${fmtSGD(filteredOut)}`:''}${filteredOut&&filteredIn?' / ':''}${filteredIn?`+ ${fmtSGD(filteredIn)}`:''}
       </span>
-    </div>`;
+    </div></div></div>`;
     html+='</div>';
   }
   document.getElementById('ppl-cards').innerHTML=html||'<div class="ppl-empty">No matching people</div>';
