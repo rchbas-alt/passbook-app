@@ -910,6 +910,9 @@ function renderPeople(){
         ${totalInSGD?`<div class="ppl-total-chip"><span class="chip-label">Received back </span><span class="chip-val">${fmtSGD(totalInSGD)}</span></div>`:''}
         ${totalInSGD?`<div class="ppl-total-chip ${net>0.005?'net-pos':'net-neg'}"><span class="chip-label">Net </span><span class="chip-val">${net>=0?'You sent ':'They sent '} ${fmtSGD(Math.abs(net))} net</span></div>`:''}
       </div>`;
+    const filteredOut=rows.filter(t=>t.dir==='OUT').reduce((s,t)=>s+totalSGD(t),0);
+    const filteredIn=rows.filter(t=>t.dir==='IN').reduce((s,t)=>s+sgdEquiv(t),0);
+    const anyFilter=dirF||ccyF||fromF||untilF;
     html+=rows.map(t=>{
       const sgd=t.dir==='OUT'?totalSGD(t):sgdEquiv(t);
       const sign=t.dir==='OUT'?'−':'+';
@@ -921,7 +924,14 @@ function renderPeople(){
         <span class="tx-sgd">≈ ${sign} ${fmtSGD(sgd)}</span>
       </div>`;
     }).join('');
-    html+=(dirF||ccyF||fromF||untilF)?`<div class="ppl-empty">Filtered to ${rows.length} of ${txs.length} entries</div>`:'';
+    html+=`<div class="ppl-tx-row" style="background:#efe7d5;font-weight:700;border-left:3px solid var(--rule-strong)">
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--ink-soft)">${anyFilter?`${rows.length} of ${txs.length}`:'All'} entries</span>
+      <span></span><span></span>
+      <span class="tx-amt" style="font-size:11px">${filteredOut&&filteredIn?'OUT / IN':filteredOut?'OUT total':'IN total'}</span>
+      <span class="tx-sgd" style="font-weight:700;color:var(--navy)">
+        ${filteredOut?`− ${fmtSGD(filteredOut)}`:''}${filteredOut&&filteredIn?' / ':''}${filteredIn?`+ ${fmtSGD(filteredIn)}`:''}
+      </span>
+    </div>`;
     html+='</div>';
   }
   document.getElementById('ppl-cards').innerHTML=html||'<div class="ppl-empty">No matching people</div>';
