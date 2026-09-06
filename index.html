@@ -932,12 +932,12 @@ function renderPeople(){
         <span class="tx-sgd">≈ ${sign} ${fmtSGD(sgd)}</span>
       </div>`;
     }).join('');
-    html+=`<div class="ppl-tx-row" style="background:#efe7d5;font-weight:700;border-left:3px solid var(--rule-strong)">
-      <span style="font-family:var(--font-mono);font-size:10px;color:var(--ink-soft)">${anyFilter?`${rows.length} of ${txs.length}`:'All'} entries</span>
-      <span></span><span></span>
-      <span class="tx-amt" style="font-size:11px">${filteredOut&&filteredIn?'OUT / IN':filteredOut?'OUT total':'IN total'}</span>
-      <span class="tx-sgd" style="font-weight:700;color:var(--navy)">
-        ${filteredOut?`− ${fmtSGD(filteredOut)}`:''}${filteredOut&&filteredIn?' / ':''}${filteredIn?`+ ${fmtSGD(filteredIn)}`:''}
+    html+=`<div style="background:#efe7d5;padding:8px 16px;border-top:1px solid var(--rule-strong);display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:11px">
+      <span style="color:var(--ink-soft)">${anyFilter?`${rows.length} of ${txs.length} entries`:'All entries'}</span>
+      <span style="display:flex;gap:16px">
+        ${filteredOut?`<span style="color:var(--rust-deep);font-weight:700">Out: − ${fmtSGD(filteredOut)}</span>`:''}
+        ${filteredIn?`<span style="color:var(--forest-deep);font-weight:700">In: + ${fmtSGD(filteredIn)}</span>`:''}
+        ${filteredOut&&filteredIn?`<span style="color:var(--navy);font-weight:700">Net: ${filteredOut>filteredIn?'−':'+'} ${fmtSGD(Math.abs(filteredOut-filteredIn))}</span>`:''}
       </span>
     </div></div></div>`;
     html+='</div>';
