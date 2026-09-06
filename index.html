@@ -135,6 +135,16 @@ td{padding:8px 11px;vertical-align:middle}
 .sum-row .sum-pct{flex:0 0 auto;color:var(--ink-soft);font-size:11px;font-family:var(--font-mono);width:32px;text-align:right}
 .sum-row.sum-total{font-weight:700;background:#efe7d5;border-bottom:none}
 .sum-table .sum-label{color:var(--ink-soft)}
+.sum-row .sum-sgd{flex:0 0 auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);width:110px;text-align:right;white-space:nowrap}
+.bal-row{display:grid;grid-template-columns:minmax(0,1.4fr) 1fr 1fr 1.3fr;gap:10px;padding:9px 12px;font-size:12px;border-bottom:1px solid var(--rule);align-items:center}
+.bal-row.bal-head{font-family:var(--font-mono);font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.4px;background:#efe7d5}
+.bal-row .bal-num{font-family:var(--font-mono);text-align:right;white-space:nowrap}
+.bal-row .bal-sub{display:block;font-size:10.5px;color:var(--ink-soft);font-weight:400}
+.bal-row .bal-net{font-weight:700;text-align:right;font-family:var(--font-mono);white-space:nowrap}
+.bal-row .bal-net.owe-me{color:var(--forest-deep)}
+.bal-row .bal-net.owe-them{color:var(--rust-deep)}
+.bal-row .bal-warn{display:block;font-size:10.5px;color:var(--rust-deep);font-weight:400}
+@media(max-width:700px){.bal-row{grid-template-columns:minmax(0,1.2fr) 1fr 1fr}.bal-row .bal-col-recv{display:none}}
 .month-bar{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);min-width:0}
 .cs-range-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
 .cs-group{border:1px solid var(--rule-strong);margin-bottom:10px;background:var(--paper-raised)}
@@ -304,25 +314,41 @@ td{padding:8px 11px;vertical-align:middle}
 </div>
 
 <div id="page-summary" class="page">
+  <div class="sum-block" style="margin-bottom:18px">
+    <div class="sum-block-title">Balances with people — sent vs received back</div>
+    <div class="sum-table" id="sum-balances"></div>
+  </div>
   <div class="summary-grid">
     <div>
       <div class="sum-block" style="margin-bottom:18px">
-        <div class="sum-block-title">By recipient — SGD out</div>
+        <div class="sum-block-title">Sent to people — SGD out</div>
         <div class="sum-table" id="sum-by-person"></div>
       </div>
+      <div class="sum-block" style="margin-bottom:18px">
+        <div class="sum-block-title">Received from people — SGD in</div>
+        <div class="sum-table" id="sum-in-person"></div>
+      </div>
       <div class="sum-block">
-        <div class="sum-block-title">By category — SGD out</div>
+        <div class="sum-block-title">By category — SGD out (people)</div>
         <div class="sum-table" id="sum-by-cat"></div>
       </div>
     </div>
     <div>
       <div class="sum-block" style="margin-bottom:18px">
-        <div class="sum-block-title">Monthly SGD outflow (last 12)</div>
+        <div class="sum-block-title">Institutions &amp; self — salary, tax, cards</div>
+        <div class="sum-table" id="sum-inst"></div>
+      </div>
+      <div class="sum-block" style="margin-bottom:18px">
+        <div class="sum-block-title">Monthly SGD outflow to people (last 12)</div>
         <div id="monthly-bars" style="padding:10px 15px"></div>
       </div>
-      <div class="sum-block">
-        <div class="sum-block-title">By currency — actual amounts sent</div>
+      <div class="sum-block" style="margin-bottom:18px">
+        <div class="sum-block-title">By currency — sent to people</div>
         <div class="sum-table" id="sum-by-ccy"></div>
+      </div>
+      <div class="sum-block">
+        <div class="sum-block-title">By currency — received from people</div>
+        <div class="sum-table" id="sum-in-ccy"></div>
       </div>
     </div>
   </div>
@@ -572,6 +598,14 @@ td{padding:8px 11px;vertical-align:middle}
           </select>
         </div>
       </div>
+      <div class="form-row">
+        <div class="field">
+          <label>EUR equivalent</label>
+          <input type="number" id="f-eur-equiv" placeholder="only for HUF sends to Ilkim" step="0.01">
+          <div class="hint">Leave blank when the entry itself is in EUR</div>
+        </div>
+        <div class="field"></div>
+      </div>
       <div class="form-row full">
         <div class="field">
           <label>Remark</label>
@@ -674,6 +708,7 @@ async function loadData(){
       const text = safeAtobUtf8(meta.content);
       const parsed = JSON.parse(text);
       db = parsed && parsed.transfers ? parsed : db;
+      normalizeNames();
       if(!db.plans) db.plans=[];
       if(!db.dismissedDupes) db.dismissedDupes=[];
       localStorage.setItem(STORE_KEY, JSON.stringify(db));
@@ -1635,15 +1670,87 @@ function saveQuickRate(ccy){
 }
 function deleteRate(id){db.rates=db.rates.filter(r=>r.id!==id);save();renderFX();}
 
+// ===== SUMMARY: people vs institutions, balances =====
+function normName(n){return (n||'').replace(/İ/g,'I').replace(/ı/g,'i').trim();}
+function normalizeNames(){db.transfers.forEach(t=>{const n=normName(t.name);if(n!==t.name)t.name=n;});}
+const INSTITUTION_NAMES=['IRAS','MBS'];
+const INSTITUTION_CATS=['Salary','Tax','Income Tax'];
+function isInstitution(t){return INSTITUTION_NAMES.includes(t.name)||INSTITUTION_CATS.includes(t.category)||CARD_PLATFORMS.includes(t.platform);}
+function isPersonTx(t){return t.internal!=='Y'&&!isInstitution(t);}
+// Ledger groups: people whose sends and repayments are tracked as one balance.
+// Erkan repays what is sent to Ilkim, so they share one EUR ledger.
+const LEDGER_GROUPS=[{label:'Erkan / Ilkim',names:['Erkan','Ilkim'],ccy:'EUR',note:'Sent to Ilkim in Budapest, repaid by Erkan into Akbank'}];
+// Express a tx in the ledger currency. Exact when the tx is already in that currency
+// or carries a stated EUR equivalent; otherwise approximated via SGD and the latest rate.
+function ledgerAmt(t,ccy){
+  if(t.ccy===ccy)return {v:parseFloat(t.foreignAmt)||0,exact:true};
+  if(ccy==='EUR'&&t.eurEquiv!==undefined&&t.eurEquiv!==null&&t.eurEquiv!=='')return {v:parseFloat(t.eurEquiv)||0,exact:true};
+  const r=getLatestRate(ccy);
+  return {v:r?sgdEquiv(t)*r:0,exact:false};
+}
+function fmtAmt(n){return (n||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtCcy(ccy,n){return ccy+' '+fmtAmt(n);}
+function renderBalances(){
+  const people=db.transfers.filter(isPersonTx);
+  const grouped=new Set(LEDGER_GROUPS.flatMap(g=>g.names));
+  const groups=[...LEDGER_GROUPS];
+  // Anyone else with both sends and receipts gets a balance row in their main currency
+  const byName={};
+  people.forEach(t=>{(byName[t.name]=byName[t.name]||[]).push(t)});
+  Object.entries(byName).forEach(([name,txs])=>{
+    if(grouped.has(name))return;
+    if(!txs.some(t=>t.dir==='OUT')||!txs.some(t=>t.dir==='IN'))return;
+    const cc={};txs.forEach(t=>{cc[t.ccy]=(cc[t.ccy]||0)+1});
+    const ccy=Object.entries(cc).sort((a,b)=>b[1]-a[1])[0][0];
+    groups.push({label:name,names:[name],ccy,note:''});
+  });
+  const rows=groups.map(g=>{
+    const txs=people.filter(t=>g.names.includes(t.name));
+    let sent=0,recv=0,sentSgd=0,recvSgd=0,approx=0,missing=0;
+    txs.forEach(t=>{
+      const a=ledgerAmt(t,g.ccy);
+      if(!a.exact){approx++;if(t.ccy==='HUF'&&g.ccy==='EUR')missing++;}
+      if(t.dir==='OUT'){sent+=a.v;sentSgd+=totalSGD(t);}else{recv+=a.v;recvSgd+=sgdEquiv(t);}
+    });
+    const net=sent-recv,netSgd=sentSgd-recvSgd;
+    const who=g.names[0];
+    const netLabel=Math.abs(net)<0.005?'Settled':(net>0?`${who} owes you`:`You owe ${who}`);
+    const warn=missing?`<span class="bal-warn">${missing} HUF entr${missing===1?'y':'ies'} without a EUR equivalent — approximated. Edit the entry and fill "EUR equivalent".</span>`
+      :(approx?`<span class="bal-warn">${approx} entr${approx===1?'y':'ies'} approximated via SGD</span>`:'');
+    const nOut=txs.filter(t=>t.dir==='OUT').length,nIn=txs.length-nOut;
+    return `<div class="bal-row">
+      <div><strong>${g.label}</strong>${g.note?`<span class="bal-sub">${g.note}</span>`:''}${warn}</div>
+      <div class="bal-num">${fmtCcy(g.ccy,sent)}<span class="bal-sub">${fmtSGD(sentSgd)} incl. fees, ${nOut} sends</span></div>
+      <div class="bal-num bal-col-recv">${fmtCcy(g.ccy,recv)}<span class="bal-sub">${fmtSGD(recvSgd)}, ${nIn} received</span></div>
+      <div class="bal-net ${net>0.005?'owe-me':(net<-0.005?'owe-them':'')}">${fmtCcy(g.ccy,Math.abs(net))}<span class="bal-sub">${netLabel} (≈ ${fmtSGD(Math.abs(netSgd))})</span></div>
+    </div>`;
+  }).join('');
+  document.getElementById('sum-balances').innerHTML=
+    `<div class="bal-row bal-head"><div>Person</div><div class="bal-num">Sent</div><div class="bal-num bal-col-recv">Received back</div><div class="bal-net">Balance</div></div>`+
+    (rows||'<div class="sum-row"><span class="sum-label">No one has both sends and repayments yet</span></div>');
+}
 function renderSummary(){
-  const outTx=db.transfers.filter(t=>t.dir==='OUT'&&t.internal!=='Y');
+  renderBalances();
+  const people=db.transfers.filter(isPersonTx);
+  const outTx=people.filter(t=>t.dir==='OUT');
+  const inTx=people.filter(t=>t.dir==='IN');
+
   const byPerson={};
-  outTx.filter(t=>!CARD_PLATFORMS.includes(t.platform)).forEach(t=>{byPerson[t.name]=(byPerson[t.name]||0)+totalSGD(t)});
+  outTx.forEach(t=>{byPerson[t.name]=(byPerson[t.name]||0)+totalSGD(t)});
   const personRows=Object.entries(byPerson).sort((a,b)=>b[1]-a[1]);
   const totalPerson=personRows.reduce((s,r)=>s+r[1],0);
   document.getElementById('sum-by-person').innerHTML=
     personRows.map(([name,amt])=>`<div class="sum-row"><span class="sum-label">${name}</span><span class="sum-amount">${fmtSGD(amt)}</span><span class="sum-pct">${totalPerson?((amt/totalPerson)*100).toFixed(0)+'%':''}</span></div>`).join('')+
     `<div class="sum-row sum-total"><span class="sum-label">Total</span><span class="sum-amount">${fmtSGD(totalPerson)}</span><span class="sum-pct"></span></div>`;
+
+  const inPerson={};
+  inTx.forEach(t=>{inPerson[t.name]=(inPerson[t.name]||0)+sgdEquiv(t)});
+  const inRows=Object.entries(inPerson).sort((a,b)=>b[1]-a[1]);
+  const totalIn=inRows.reduce((s,r)=>s+r[1],0);
+  document.getElementById('sum-in-person').innerHTML=
+    (inRows.map(([name,amt])=>`<div class="sum-row"><span class="sum-label">${name}</span><span class="sum-amount">${fmtSGD(amt)}</span><span class="sum-pct">${totalIn?((amt/totalIn)*100).toFixed(0)+'%':''}</span></div>`).join('')||'<div class="sum-row"><span class="sum-label">Nothing received yet</span></div>')+
+    `<div class="sum-row sum-total"><span class="sum-label">Total received</span><span class="sum-amount">${fmtSGD(totalIn)}</span><span class="sum-pct"></span></div>`+
+    `<div class="sum-row sum-total"><span class="sum-label">Net out to people (sent − received)</span><span class="sum-amount">${fmtSGD(totalPerson-totalIn)}</span><span class="sum-pct"></span></div>`;
 
   const byCat={};
   outTx.forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+totalSGD(t)});
@@ -1652,10 +1759,28 @@ function renderSummary(){
     catRows.map(([cat,amt])=>`<div class="sum-row"><span class="sum-label">${cat}</span><span class="sum-amount">${fmtSGD(amt)}</span></div>`).join('')+
     `<div class="sum-row sum-total"><span class="sum-label">Total</span><span class="sum-amount">${fmtSGD(catRows.reduce((s,r)=>s+r[1],0))}</span></div>`;
 
-  const byCcyForeign={};
-  outTx.forEach(t=>{byCcyForeign[t.ccy]=(byCcyForeign[t.ccy]||0)+(parseFloat(t.foreignAmt)||0)});
-  document.getElementById('sum-by-ccy').innerHTML=
-    Object.entries(byCcyForeign).sort((a,b)=>b[1]-a[1]).map(([ccy,amt])=>`<div class="sum-row"><span class="sum-label"><span class="ccy-tag">${ccy}</span></span><span class="sum-amount">${amt.toLocaleString('en-SG',{minimumFractionDigits:2})}</span></div>`).join('');
+  // Institutions and self: not people, so kept out of the person tables above
+  const inst=db.transfers.filter(t=>t.internal!=='Y'&&isInstitution(t));
+  const salary=inst.filter(t=>t.dir==='IN'&&(t.category==='Salary'||t.name==='MBS')).reduce((s,t)=>s+sgdEquiv(t),0);
+  const tax=inst.filter(t=>t.dir==='OUT'&&(t.name==='IRAS'||t.category==='Tax'||t.category==='Income Tax')).reduce((s,t)=>s+totalSGD(t),0);
+  const cards=inst.filter(t=>t.dir==='OUT'&&CARD_PLATFORMS.includes(t.platform)).reduce((s,t)=>s+totalSGD(t),0);
+  const selfFees=db.transfers.filter(t=>t.internal==='Y').reduce((s,t)=>s+(parseFloat(t.fee)||0),0);
+  document.getElementById('sum-inst').innerHTML=
+    `<div class="sum-row"><span class="sum-label">Salary received (MBS)</span><span class="sum-amount">${fmtSGD(salary)}</span></div>`+
+    `<div class="sum-row"><span class="sum-label">Income tax paid (IRAS)</span><span class="sum-amount">${fmtSGD(tax)}</span></div>`+
+    `<div class="sum-row"><span class="sum-label">Card spend (DBS / OCBC)</span><span class="sum-amount">${fmtSGD(cards)}</span></div>`+
+    `<div class="sum-row"><span class="sum-label">Self-transfer fees</span><span class="sum-amount">${fmtSGD(selfFees)}</span></div>`+
+    `<div class="sum-row sum-total"><span class="sum-label">Salary − tax − cards</span><span class="sum-amount">${fmtSGD(salary-tax-cards)}</span></div>`;
+
+  const ccyTable=(txs,useTotal)=>{
+    const f={},sg={};
+    txs.forEach(t=>{f[t.ccy]=(f[t.ccy]||0)+(parseFloat(t.foreignAmt)||0);sg[t.ccy]=(sg[t.ccy]||0)+(useTotal?totalSGD(t):sgdEquiv(t))});
+    const rows=Object.entries(sg).sort((a,b)=>b[1]-a[1]);
+    return (rows.map(([ccy,amt])=>`<div class="sum-row"><span class="sum-label"><span class="ccy-tag">${ccy}</span></span><span class="sum-amount">${fmtAmt(f[ccy])}</span><span class="sum-sgd">≈ ${fmtSGD(amt)}</span></div>`).join('')||'<div class="sum-row"><span class="sum-label">None</span></div>')+
+      `<div class="sum-row sum-total"><span class="sum-label">Total in SGD</span><span class="sum-amount"></span><span class="sum-sgd">${fmtSGD(rows.reduce((s,r)=>s+r[1],0))}</span></div>`;
+  };
+  document.getElementById('sum-by-ccy').innerHTML=ccyTable(outTx,true);
+  document.getElementById('sum-in-ccy').innerHTML=ccyTable(inTx,false);
 
   const byMonth={};
   outTx.forEach(t=>{const m=t.date.slice(0,7);byMonth[m]=(byMonth[m]||0)+totalSGD(t)});
@@ -1698,7 +1823,7 @@ function openAddTx(){
   document.getElementById('modal-tx-title').textContent='New entry';
   setDir('OUT');
   document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
-  ['f-name','f-to-acct','f-foreign-amt','f-remark','f-from-acct'].forEach(id=>document.getElementById(id).value='');
+  ['f-name','f-to-acct','f-foreign-amt','f-remark','f-from-acct','f-eur-equiv'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-rate').value='';
   document.getElementById('f-fee').value='0';
   document.getElementById('f-country').value='';
@@ -1726,6 +1851,7 @@ function editTx(id){
   document.getElementById('f-fee').value=t.fee||0;
   document.getElementById('f-platform').value=t.platform||'Wise';
   document.getElementById('f-remark').value=t.remark||'';
+  document.getElementById('f-eur-equiv').value=(t.eurEquiv!==undefined&&t.eurEquiv!==null)?t.eurEquiv:'';
   applyCategoryDefaults();
   updatePeopleList();updateAcctsList();updateRatePreview();
   document.getElementById('modal-tx').classList.add('open');
@@ -1833,6 +1959,9 @@ function saveTx(){
     internal: category==='Self-Transfer'?'Y':'N',
     remark:document.getElementById('f-remark').value.trim(),
   };
+  tx.name=normName(tx.name);
+  const eurEq=parseFloat(document.getElementById('f-eur-equiv').value);
+  if(!isNaN(eurEq)&&ccy!=='EUR')tx.eurEquiv=eurEq;
   const dupOf=findDuplicateOf(tx,db.transfers,editingId);
   if(dupOf&&!confirm(`This looks like a duplicate of an existing entry:\n${dupOf.date} · ${dupOf.name} · ${dupOf.ccy} ${dupOf.foreignAmt}\n\nSave anyway?`))return;
   if(editingId){db.transfers=db.transfers.map(t=>t.id===editingId?tx:t);}
