@@ -311,7 +311,7 @@ td{padding:8px 11px;vertical-align:middle}
     <select id="f-cat" onchange="renderTransfers()">
       <option value="">All categories</option>
       <option>Allowance</option><option>School</option><option>Insurance</option>
-      <option>Property</option><option>Loan</option><option>Gift</option>
+      <option>Property</option><option>Loan</option><option>Loan Given</option><option>Loan Repayment</option><option>Gift</option>
       <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
       <option>Repayment</option><option>Business</option><option>Salary</option>
       <option>Groceries</option><option>Transport</option><option>Dining</option>
@@ -343,6 +343,10 @@ td{padding:8px 11px;vertical-align:middle}
 </div>
 
 <div id="page-summary" class="page">
+  <div class="sum-block" style="margin-bottom:18px">
+    <div class="sum-block-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>Loans given — money lent out</span><button class="btn sm" onclick="openAddLend()">+ Add loan given</button></div>
+    <div id="lend-list"></div>
+  </div>
   <div class="sum-block" style="margin-bottom:18px">
     <div class="sum-block-title">Balances with people — sent vs received back</div>
     <div class="sum-table" id="sum-balances"></div>
@@ -492,6 +496,56 @@ td{padding:8px 11px;vertical-align:middle}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-lend">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-lend-title">New loan given</div>
+      <button class="modal-close" onclick="closeModal('modal-lend')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field">
+          <label>Borrower (same name as on ledger entries)</label>
+          <input type="text" id="l-name" list="people-list" placeholder="e.g. Rhoda">
+        </div>
+      </div>
+      <div class="form-row three">
+        <div class="field">
+          <label>Currency</label>
+          <select id="l-ccy"><option>PHP</option><option>SGD</option><option>EUR</option><option>USD</option><option>HUF</option><option>TRY</option><option>CAD</option></select>
+        </div>
+        <div class="field">
+          <label>Amount lent</label>
+          <input type="number" id="l-principal" placeholder="1500000">
+        </div>
+        <div class="field">
+          <label>Monthly return</label>
+          <input type="number" id="l-monthly" placeholder="105000">
+        </div>
+      </div>
+      <div class="form-row three">
+        <div class="field">
+          <label>Number of months</label>
+          <input type="number" id="l-months" placeholder="15">
+        </div>
+        <div class="field">
+          <label>Date sent</label>
+          <input type="date" id="l-sent">
+        </div>
+        <div class="field">
+          <label>First payment due</label>
+          <input type="date" id="l-first">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:6px">Record the transfer as an entry with category <strong>Loan Given</strong>, and each payment you receive as an IN entry with category <strong>Loan Repayment</strong>. This card reads those entries automatically.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal('modal-lend')">Cancel</button>
+      <button class="btn" onclick="saveLend()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bulk">
   <div class="modal" style="width:640px">
     <div class="modal-header">
@@ -573,7 +627,7 @@ td{padding:8px 11px;vertical-align:middle}
           <label>Category</label>
           <select id="f-category" onchange="applyCategoryDefaults()">
             <option>Allowance</option><option>School</option><option>Insurance</option>
-            <option>Property</option><option>Loan</option><option>Gift</option>
+            <option>Property</option><option>Loan</option><option>Loan Given</option><option>Loan Repayment</option><option>Gift</option>
             <option>RFID/Fees</option><option>Investment</option><option>Self-Transfer</option>
             <option>Repayment</option><option>Business</option><option>Salary</option>
             <option>Groceries</option><option>Transport</option><option>Dining</option>
@@ -670,7 +724,7 @@ td{padding:8px 11px;vertical-align:middle}
 
 <script>
 const STORE_KEY = 'passbook_v1';
-let db = { transfers: [], rates: [], plans: [] };
+let db = { transfers: [], rates: [], plans: [], lendPlans: [] };
 
 // ===== GITHUB SYNC CONFIG (same Worker as EMELCO, separate data file) =====
 const PROXY_URL = 'https://emelco-proxy.rchbas.workers.dev';
@@ -758,6 +812,7 @@ async function loadData(){
       db = parsed && parsed.transfers ? parsed : db;
       normalizeNames();
       if(!db.plans) db.plans=[];
+      if(!db.lendPlans) db.lendPlans=[];
       if(!db.dismissedDupes) db.dismissedDupes=[];
       localStorage.setItem(STORE_KEY, JSON.stringify(db));
       setSyncStatus('✓ Synced', 'var(--forest-deep)');
@@ -788,6 +843,9 @@ function loadLocalOrSeed(){
   }
   if(!db.plans){
     db.plans = [];
+  }
+  if(!db.lendPlans){
+    db.lendPlans = [];
   }
   if(!db.dismissedDupes){
     db.dismissedDupes = [];
@@ -1465,6 +1523,115 @@ function deletePlan(id){
   }
 }
 
+// ===== Loans given (money lent out, repaid monthly) =====
+function addMonthsISO(iso,n){
+  const [y,m,d]=iso.split('-').map(Number);
+  const t=new Date(Date.UTC(y,m-1+n,1));
+  const last=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate();
+  t.setUTCDate(Math.min(d,last));
+  return t.toISOString().slice(0,10);
+}
+function lendMatches(t,l){return (t.name||'').trim().toLowerCase()===(l.name||'').trim().toLowerCase();}
+function computeLend(l){
+  const given=db.transfers.filter(t=>t.dir==='OUT'&&t.category==='Loan Given'&&lendMatches(t,l));
+  const repaid=db.transfers.filter(t=>t.dir==='IN'&&t.category==='Loan Repayment'&&lendMatches(t,l)).sort((a,b)=>a.date.localeCompare(b.date));
+  const sent=given.reduce((s,t)=>s+ledgerAmt(t,l.ccy).v,0);
+  const received=repaid.reduce((s,t)=>s+ledgerAmt(t,l.ccy).v,0);
+  const expected=(l.monthly||0)*(l.months||0);
+  const today=new Date().toISOString().slice(0,10);
+  const rows=[];
+  for(let i=0;i<(l.months||0);i++){
+    const due=addMonthsISO(l.firstDue,i);
+    const covered=received+0.005>=(i+1)*l.monthly;
+    let status=covered?'Paid':(due<=today?'Late':'Upcoming');
+    rows.push({n:i+1,due,status});
+  }
+  const paidN=rows.filter(r=>r.status==='Paid').length;
+  const lateN=rows.filter(r=>r.status==='Late').length;
+  const next=rows.find(r=>r.status!=='Paid');
+  return{sent,received,expected,rows,paidN,lateN,next,left:Math.max(expected-received,0),gain:expected-(l.principal||0),givenCount:given.length,repaidCount:repaid.length};
+}
+function renderLend(){
+  const box=document.getElementById('lend-list');
+  if(!box)return;
+  if(!db.lendPlans||!db.lendPlans.length){
+    box.innerHTML='<div style="padding:12px 15px;color:var(--ink-soft);font-size:12px">No loans given yet — add one to track what is still owed to you.</div>';
+    return;
+  }
+  box.innerHTML=db.lendPlans.map(l=>{
+    const c=computeLend(l);
+    const warn=[];
+    if(!c.givenCount)warn.push('No entry with category “Loan Given” for '+l.name+' yet — add the transfer so the amount lent is recorded.');
+    else if(Math.abs(c.sent-l.principal)>0.5)warn.push('Entries marked Loan Given total '+fmtCcy(l.ccy,c.sent)+', not '+fmtCcy(l.ccy,l.principal)+'.');
+    const statusTxt=c.paidN>=l.months?'Fully repaid':(c.lateN?`${c.lateN} month${c.lateN>1?'s':''} late`:'On track');
+    const statusCol=c.paidN>=l.months?'var(--forest)':(c.lateN?'var(--rust)':'var(--forest)');
+    const sched=c.rows.map(r=>{
+      const col=r.status==='Paid'?'var(--forest)':(r.status==='Late'?'var(--rust)':'var(--ink-soft)');
+      return `<tr><td style="padding:3px 10px 3px 0">${r.n}</td><td style="padding:3px 10px">${r.due}</td><td style="padding:3px 10px;text-align:right">${fmtAmt(l.monthly)}</td><td style="padding:3px 0 3px 10px;color:${col};font-weight:600">${r.status}</td></tr>`;
+    }).join('');
+    return `<div style="padding:12px 15px;border-top:1px solid var(--rule)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+        <strong style="font-size:15px">${l.name}</strong>
+        <span style="font-size:12px;font-weight:600;color:${statusCol}">${statusTxt}</span>
+      </div>
+      <div class="ledger-cards" style="margin-bottom:8px">
+        <div class="lcard"><div class="lcard-label">Lent</div><div class="lcard-value">${fmtCcy(l.ccy,l.principal)}</div><div class="lcard-sub">sent ${l.sentDate||'—'}</div></div>
+        <div class="lcard"><div class="lcard-label">Received back</div><div class="lcard-value">${fmtCcy(l.ccy,c.received)}</div><div class="lcard-sub">${c.paidN} / ${l.months} instalments</div></div>
+        <div class="lcard"><div class="lcard-label">Still to come</div><div class="lcard-value">${fmtCcy(l.ccy,c.left)}</div><div class="lcard-sub">${c.next?`next ${c.next.due}`:'nothing due'}</div></div>
+        <div class="lcard"><div class="lcard-label">Total return</div><div class="lcard-value">${fmtCcy(l.ccy,c.expected)}</div><div class="lcard-sub">${c.gain>=0?'+':''}${fmtAmt(c.gain)} over amount lent</div></div>
+      </div>
+      ${warn.map(w=>`<div class="bal-warn" style="margin-bottom:6px">${w}</div>`).join('')}
+      <details><summary style="cursor:pointer;font-size:12px;color:var(--ink-soft)">Payment schedule — ${fmtAmt(l.monthly)} × ${l.months}</summary>
+        <table style="font-family:var(--font-mono);font-size:11.5px;margin-top:6px"><thead><tr style="color:var(--ink-soft);text-align:left"><th style="padding:3px 10px 3px 0">#</th><th style="padding:3px 10px">Due</th><th style="padding:3px 10px;text-align:right">Amount</th><th style="padding:3px 0 3px 10px">Status</th></tr></thead><tbody>${sched}</tbody></table>
+      </details>
+      <div style="margin-top:8px;display:flex;gap:6px"><button class="btn ghost sm" onclick="editLend('${l.id}')">Edit</button><button class="btn sm danger" onclick="deleteLend('${l.id}')">Delete</button></div>
+    </div>`;
+  }).join('');
+}
+let editingLendId=null;
+function openAddLend(){
+  editingLendId=null;
+  document.getElementById('modal-lend-title').textContent='New loan given';
+  ['l-name','l-principal','l-monthly','l-months','l-first'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('l-ccy').value='PHP';
+  document.getElementById('l-sent').value=new Date().toISOString().slice(0,10);
+  document.getElementById('modal-lend').classList.add('open');
+}
+function editLend(id){
+  const l=(db.lendPlans||[]).find(x=>x.id===id);if(!l)return;
+  editingLendId=id;
+  document.getElementById('modal-lend-title').textContent='Edit loan given';
+  document.getElementById('l-name').value=l.name;
+  document.getElementById('l-ccy').value=l.ccy;
+  document.getElementById('l-principal').value=l.principal;
+  document.getElementById('l-monthly').value=l.monthly;
+  document.getElementById('l-months').value=l.months;
+  document.getElementById('l-sent').value=l.sentDate||'';
+  document.getElementById('l-first').value=l.firstDue;
+  document.getElementById('modal-lend').classList.add('open');
+}
+function saveLend(){
+  const name=normName(document.getElementById('l-name').value);
+  const ccy=document.getElementById('l-ccy').value;
+  const principal=parseFloat(document.getElementById('l-principal').value)||0;
+  const monthly=parseFloat(document.getElementById('l-monthly').value)||0;
+  const months=parseInt(document.getElementById('l-months').value,10)||0;
+  const sentDate=document.getElementById('l-sent').value;
+  const firstDue=document.getElementById('l-first').value;
+  if(!name||!principal||!monthly||!months||!firstDue){alert('Borrower, amount lent, monthly return, months and first payment date are required.');return;}
+  const l={id:editingLendId||uid(),name,ccy,principal,monthly,months,sentDate,firstDue};
+  if(!db.lendPlans)db.lendPlans=[];
+  if(editingLendId){db.lendPlans=db.lendPlans.map(x=>x.id===editingLendId?l:x);}
+  else{db.lendPlans.push(l);}
+  save();closeModal('modal-lend');renderLend();
+}
+function deleteLend(id){
+  if(confirm('Delete this loan record? Your ledger entries are not deleted.')){
+    db.lendPlans=(db.lendPlans||[]).filter(x=>x.id!==id);
+    save();renderLend();
+  }
+}
+
 // ===== IPP instalment plans: auto-detected from card statement patterns =====
 // OCBC: "IPP CASH-ON-INSTALMENTS 017/060" (current/total counter + separate interest line)
 const IPP_COUNTER_RE=/IPP\s*CASH-ON-INSTAL(?:MENTS)?\s+(\d{1,3})\s*\/\s*(\d{1,3})/i;
@@ -1802,7 +1969,8 @@ function normalizeNames(){db.transfers.forEach(t=>{const n=normName(t.name);if(n
 const INSTITUTION_NAMES=['IRAS','MBS'];
 const INSTITUTION_CATS=['Salary','Tax','Income Tax'];
 function isInstitution(t){return INSTITUTION_NAMES.includes(t.name)||INSTITUTION_CATS.includes(t.category)||CARD_PLATFORMS.includes(t.platform);}
-function isPersonTx(t){return t.internal!=='Y'&&!isInstitution(t);}
+function isLendTx(t){return t.category==='Loan Given'||t.category==='Loan Repayment';}
+function isPersonTx(t){return t.internal!=='Y'&&!isInstitution(t)&&!isLendTx(t);}
 // Ledger groups: people whose sends and repayments are tracked as one balance.
 // Erkan repays what is sent to Ilkim, so they share one EUR ledger.
 const LEDGER_GROUPS=[{label:'Erkan / Ilkim',names:['Erkan','Ilkim'],ccy:'EUR',note:'Sent to Ilkim in Budapest, repaid by Erkan into Akbank'}];
@@ -1856,6 +2024,7 @@ function renderBalances(){
     (rows||'<div class="sum-row"><span class="sum-label">No one has both sends and repayments yet</span></div>');
 }
 function renderSummary(){
+  renderLend();
   renderBalances();
   const people=db.transfers.filter(isPersonTx);
   const outTx=people.filter(t=>t.dir==='OUT');
