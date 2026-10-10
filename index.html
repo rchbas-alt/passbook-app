@@ -322,6 +322,7 @@ td{padding:8px 11px;vertical-align:middle}
     <input type="month" id="f-month" onchange="renderTransfers()">
     <button class="btn ghost sm" onclick="clearFilters()">Clear</button>
     <button class="btn ghost sm" onclick="scanDuplicates()">Scan for duplicates</button>
+    <button class="btn ghost sm" onclick="openRentImport()">Import rent history</button>
     <button class="btn ghost sm" onclick="showDismissedDupes()">Reviewed duplicates</button>
     <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-soft)" id="result-count"></span>
   </div>
@@ -542,6 +543,24 @@ td{padding:8px 11px;vertical-align:middle}
     <div class="modal-footer">
       <button class="btn ghost" onclick="closeModal('modal-lend')">Cancel</button>
       <button class="btn" onclick="saveLend()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-rent">
+  <div class="modal" style="width:760px">
+    <div class="modal-header">
+      <div class="modal-title">Import rent history</div>
+      <button class="modal-close" onclick="closeModal('modal-rent')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Review every row. Untick anything you do not want. Rows already in your ledger are unticked. All entries are SGD, from DBS, category Rent, and show only what you paid.</div>
+      <div id="rent-import-body" style="max-height:52vh;overflow:auto"></div>
+      <div id="rent-import-total" style="margin-top:10px;font-family:var(--font-mono);font-size:12px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal('modal-rent')">Cancel</button>
+      <button class="btn" onclick="doRentImport()">Import ticked rows</button>
     </div>
   </div>
 </div>
@@ -1523,6 +1542,51 @@ function deletePlan(id){
   }
 }
 
+// ===== One-off: import rent history (Bartley + The Waterina) =====
+const RENT_ROWS = [{"date": "2021-12-17", "dir": "OUT", "name": "Bartley landlord", "amt": 6200, "remark": "Deposit (2 months) - Bartley #05-37"}, {"date": "2022-01-17", "dir": "OUT", "name": "Bartley agent", "amt": 3100, "remark": "Agent fee (1 month) - Bartley #05-37"}, {"date": "2021-12-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2021-12 - Bartley #05-37"}, {"date": "2022-01-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-01 - Bartley #05-37"}, {"date": "2022-02-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-02 - Bartley #05-37"}, {"date": "2022-03-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-03 - Bartley #05-37"}, {"date": "2022-04-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-04 - Bartley #05-37"}, {"date": "2022-05-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-05 - Bartley #05-37"}, {"date": "2022-06-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-06 - Bartley #05-37"}, {"date": "2022-07-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-07 - Bartley #05-37"}, {"date": "2022-08-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-08 - Bartley #05-37"}, {"date": "2022-09-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-09 - Bartley #05-37"}, {"date": "2022-10-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-10 - Bartley #05-37"}, {"date": "2022-11-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-11 - Bartley #05-37"}, {"date": "2022-12-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2022-12 - Bartley #05-37"}, {"date": "2023-01-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-01 - Bartley #05-37"}, {"date": "2023-02-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-02 - Bartley #05-37"}, {"date": "2023-03-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-03 - Bartley #05-37"}, {"date": "2023-04-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-04 - Bartley #05-37"}, {"date": "2023-05-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-05 - Bartley #05-37"}, {"date": "2023-06-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-06 - Bartley #05-37"}, {"date": "2023-07-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3100, "remark": "Rent 2023-07 - Bartley #05-37"}, {"date": "2023-08-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2100, "remark": "Rent 2023-08 - Bartley #05-37 (my share, Aydemir 1,000)"}, {"date": "2023-09-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2100, "remark": "Rent 2023-09 - Bartley #05-37 (my share, Aydemir 1,000)"}, {"date": "2023-10-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2100, "remark": "Rent 2023-10 - Bartley #05-37 (my share, Aydemir 1,000)"}, {"date": "2023-11-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2100, "remark": "Rent 2023-11 - Bartley #05-37 (my share, Aydemir 1,000)"}, {"date": "2023-12-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2023-12 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2023-12-17", "dir": "OUT", "name": "Bartley landlord", "amt": 400, "remark": "Renewal deposit adjustment - Bartley #05-37 (new deposit 7,400, old 6,200 carried over)"}, {"date": "2024-01-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-01 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-01-17", "dir": "OUT", "name": "Bartley agent", "amt": 3700, "remark": "Agent fee (1 month) renewal - Bartley #05-37"}, {"date": "2024-02-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-02 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-03-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-03 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-04-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-04 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-05-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-05 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-06-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-06 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-07-17", "dir": "OUT", "name": "Bartley landlord", "amt": 2200, "remark": "Rent 2024-07 - Bartley #05-37 (my share, Aydemir 1,500)"}, {"date": "2024-08-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2024-08 - Bartley #05-37"}, {"date": "2024-09-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2024-09 - Bartley #05-37"}, {"date": "2024-10-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2024-10 - Bartley #05-37"}, {"date": "2024-11-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2024-11 - Bartley #05-37"}, {"date": "2024-12-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2024-12 - Bartley #05-37"}, {"date": "2025-01-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-01 - Bartley #05-37"}, {"date": "2025-02-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-02 - Bartley #05-37"}, {"date": "2025-03-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-03 - Bartley #05-37"}, {"date": "2025-04-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-04 - Bartley #05-37"}, {"date": "2025-05-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-05 - Bartley #05-37"}, {"date": "2025-06-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-06 - Bartley #05-37"}, {"date": "2025-07-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-07 - Bartley #05-37"}, {"date": "2025-08-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-08 - Bartley #05-37"}, {"date": "2025-09-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-09 - Bartley #05-37"}, {"date": "2025-10-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-10 - Bartley #05-37"}, {"date": "2025-11-17", "dir": "OUT", "name": "Bartley landlord", "amt": 3700, "remark": "Rent 2025-11 - Bartley #05-37"}, {"date": "2025-12-26", "dir": "IN", "name": "Bartley landlord", "amt": 7400, "remark": "Deposit refund - Bartley #05-37 (2 x 3,700)"}, {"date": "2025-11-01", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Deposit 1 of 2 - The Waterina #01-39 (PayNow)"}, {"date": "2025-11-07", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Deposit 2 of 2 - The Waterina #01-39 (PayNow)"}, {"date": "2025-12-03", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2025-12 (advance) - The Waterina #01-39 (PayNow)"}, {"date": "2025-12-13", "dir": "OUT", "name": "Shiela Ong", "amt": 3250, "remark": "Agent fee (1 month) - The Waterina #01-39"}, {"date": "2026-01-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-01 - The Waterina #01-39"}, {"date": "2026-02-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-02 - The Waterina #01-39"}, {"date": "2026-03-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-03 - The Waterina #01-39"}, {"date": "2026-04-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-04 - The Waterina #01-39"}, {"date": "2026-05-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-05 - The Waterina #01-39"}, {"date": "2026-06-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-06 - The Waterina #01-39"}, {"date": "2026-07-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-07 - The Waterina #01-39"}, {"date": "2026-08-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-08 - The Waterina #01-39"}, {"date": "2026-09-13", "dir": "OUT", "name": "Lye Tin Fong", "amt": 3250, "remark": "Rent 2026-09 - The Waterina #01-39"}];
+function rentCandidate(x,date){
+  return {date,dir:x.dir,name:x.name,country:'SG',category:'Rent',
+    fromAcct:x.dir==='IN'?x.name:'DBS',toAcct:x.dir==='IN'?'OCBC':x.name,
+    ccy:'SGD',foreignAmt:x.amt,rate:1,fee:0,internal:'N',platform:'Bank Transfer',remark:x.remark};
+}
+function openRentImport(){
+  const body=document.getElementById('rent-import-body');
+  let h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:var(--ink-soft)"><th></th><th>Date</th><th>Payee</th><th style="text-align:right">SGD</th><th>Remark</th></tr></thead><tbody>';
+  RENT_ROWS.forEach((x,i)=>{
+    const dup=x.date&&findDuplicateOf(rentCandidate(x,x.date),db.transfers);
+    const noDate=!x.date;
+    const bg=noDate?'background:var(--gold-pale)':(dup?'opacity:.5':'');
+    h+=`<tr style="border-top:1px solid var(--rule);${bg}">
+      <td style="padding:4px 6px"><input type="checkbox" id="ri-chk-${i}" ${(dup||noDate)?'':'checked'} onchange="rentImportTotal()"></td>
+      <td style="padding:4px 6px"><input type="date" id="ri-date-${i}" value="${x.date}" style="font-size:12px"></td>
+      <td style="padding:4px 6px">${x.name}${x.dir==='IN'?' <strong style="color:var(--forest)">(IN)</strong>':''}</td>
+      <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono)">${fmtAmt(x.amt)}</td>
+      <td style="padding:4px 6px">${x.remark}${dup?' <em>(already in ledger)</em>':''}${noDate?' <strong style="color:var(--rust)">- enter the date received</strong>':''}</td></tr>`;
+  });
+  body.innerHTML=h+'</tbody></table>';
+  rentImportTotal();
+  document.getElementById('modal-rent').classList.add('open');
+}
+function rentImportTotal(){
+  let out=0,inn=0,n=0;
+  RENT_ROWS.forEach((x,i)=>{const c=document.getElementById('ri-chk-'+i);if(c&&c.checked){n++;if(x.dir==='IN')inn+=x.amt;else out+=x.amt;}});
+  document.getElementById('rent-import-total').textContent=`${n} rows ticked · paid ${fmtSGD(out)} · refunds ${fmtSGD(inn)}`;
+}
+function doRentImport(){
+  const add=[];
+  for(let i=0;i<RENT_ROWS.length;i++){
+    const c=document.getElementById('ri-chk-'+i);
+    if(!c||!c.checked)continue;
+    const date=document.getElementById('ri-date-'+i).value;
+    if(!date){alert('Row '+(i+1)+' is ticked but has no date: '+RENT_ROWS[i].remark);return;}
+    add.push(Object.assign({id:uid()},rentCandidate(RENT_ROWS[i],date)));
+  }
+  if(!add.length){alert('Nothing ticked.');return;}
+  db.transfers.push(...add);
+  save();closeModal('modal-rent');renderDashboard();renderTransfers();
+  alert(add.length+' rent entries added.');
+}
+
 // ===== Loans given (money lent out, repaid monthly) =====
 function addMonthsISO(iso,n){
   const [y,m,d]=iso.split('-').map(Number);
@@ -1967,7 +2031,7 @@ function deleteRate(id){db.rates=db.rates.filter(r=>r.id!==id);save();renderFX()
 function normName(n){return (n||'').replace(/İ/g,'I').replace(/ı/g,'i').trim();}
 function normalizeNames(){db.transfers.forEach(t=>{const n=normName(t.name);if(n!==t.name)t.name=n;});}
 const INSTITUTION_NAMES=['IRAS','MBS'];
-const INSTITUTION_CATS=['Salary','Tax','Income Tax'];
+const INSTITUTION_CATS=['Salary','Tax','Income Tax','Rent'];
 function isInstitution(t){return INSTITUTION_NAMES.includes(t.name)||INSTITUTION_CATS.includes(t.category)||CARD_PLATFORMS.includes(t.platform);}
 function isLendTx(t){return t.category==='Loan Given'||t.category==='Loan Repayment';}
 function isPersonTx(t){return t.internal!=='Y'&&!isInstitution(t)&&!isLendTx(t);}
@@ -2059,10 +2123,12 @@ function renderSummary(){
   const salary=inst.filter(t=>t.dir==='IN'&&(t.category==='Salary'||t.name==='MBS')).reduce((s,t)=>s+sgdEquiv(t),0);
   const tax=inst.filter(t=>t.dir==='OUT'&&(t.name==='IRAS'||t.category==='Tax'||t.category==='Income Tax')).reduce((s,t)=>s+totalSGD(t),0);
   const cards=inst.filter(t=>t.dir==='OUT'&&CARD_PLATFORMS.includes(t.platform)).reduce((s,t)=>s+totalSGD(t),0);
+  const rentNet=inst.filter(t=>t.category==='Rent').reduce((s,t)=>s+(t.dir==='IN'?-totalSGD(t):totalSGD(t)),0);
   const selfFees=db.transfers.filter(t=>t.internal==='Y').reduce((s,t)=>s+(parseFloat(t.fee)||0),0);
   document.getElementById('sum-inst').innerHTML=
     `<div class="sum-row"><span class="sum-label">Salary received (MBS)</span><span class="sum-amount">${fmtSGD(salary)}</span></div>`+
     `<div class="sum-row"><span class="sum-label">Income tax paid (IRAS)</span><span class="sum-amount">${fmtSGD(tax)}</span></div>`+
+    `<div class="sum-row"><span class="sum-label">Rent paid (net of deposit refunds)</span><span class="sum-amount">${fmtSGD(rentNet)}</span></div>`+
     `<div class="sum-row"><span class="sum-label">Card spend (DBS / OCBC)</span><span class="sum-amount">${fmtSGD(cards)}</span></div>`+
     `<div class="sum-row"><span class="sum-label">Self-transfer fees</span><span class="sum-amount">${fmtSGD(selfFees)}</span></div>`+
     `<div class="sum-row sum-total"><span class="sum-label">Salary − tax − cards</span><span class="sum-amount">${fmtSGD(salary-tax-cards)}</span></div>`;
