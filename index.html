@@ -1549,42 +1549,54 @@ function rentCandidate(x,date){
     fromAcct:x.dir==='IN'?x.name:'OCBC',toAcct:x.dir==='IN'?'OCBC':x.name,
     ccy:'SGD',foreignAmt:x.amt,rate:1,fee:0,internal:'N',platform:'Bank Transfer',remark:x.remark};
 }
+let RENT_STATE=[];
 function openRentImport(){
   const body=document.getElementById('rent-import-body');
+  RENT_STATE=RENT_ROWS.map(x=>{
+    if(!x.date)return {mode:'nodate'};
+    const cand=rentCandidate(x,x.date);
+    const ex=findDuplicateOf(cand,db.transfers);
+    if(!ex)return {mode:'new'};
+    if(ex.category==='Rent'&&(ex.fromAcct!==cand.fromAcct||ex.toAcct!==cand.toAcct))return {mode:'fix',ex};
+    return {mode:'dup',ex};
+  });
   let h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:var(--ink-soft)"><th></th><th>Date</th><th>Payee</th><th style="text-align:right">SGD</th><th>Remark</th></tr></thead><tbody>';
   RENT_ROWS.forEach((x,i)=>{
-    const dup=x.date&&findDuplicateOf(rentCandidate(x,x.date),db.transfers);
-    const noDate=!x.date;
-    const bg=noDate?'background:var(--gold-pale)':(dup?'opacity:.5':'');
+    const st=RENT_STATE[i];
+    const bg=st.mode==='nodate'?'background:var(--gold-pale)':(st.mode==='dup'?'opacity:.5':(st.mode==='fix'?'background:var(--navy-pale)':''));
+    const note=st.mode==='dup'?' <em>(already in ledger)</em>':(st.mode==='fix'?' <strong style="color:var(--navy)">(already in ledger - account will be corrected to OCBC)</strong>':(st.mode==='nodate'?' <strong style="color:var(--rust)">- enter the date received</strong>':''));
     h+=`<tr style="border-top:1px solid var(--rule);${bg}">
-      <td style="padding:4px 6px"><input type="checkbox" id="ri-chk-${i}" ${(dup||noDate)?'':'checked'} onchange="rentImportTotal()"></td>
+      <td style="padding:4px 6px"><input type="checkbox" id="ri-chk-${i}" ${(st.mode==='new'||st.mode==='fix')?'checked':''} onchange="rentImportTotal()"></td>
       <td style="padding:4px 6px"><input type="date" id="ri-date-${i}" value="${x.date}" style="font-size:12px"></td>
       <td style="padding:4px 6px">${x.name}${x.dir==='IN'?' <strong style="color:var(--forest)">(IN)</strong>':''}</td>
       <td style="padding:4px 6px;text-align:right;font-family:var(--font-mono)">${fmtAmt(x.amt)}</td>
-      <td style="padding:4px 6px">${x.remark}${dup?' <em>(already in ledger)</em>':''}${noDate?' <strong style="color:var(--rust)">- enter the date received</strong>':''}</td></tr>`;
+      <td style="padding:4px 6px">${x.remark}${note}</td></tr>`;
   });
   body.innerHTML=h+'</tbody></table>';
   rentImportTotal();
   document.getElementById('modal-rent').classList.add('open');
 }
 function rentImportTotal(){
-  let out=0,inn=0,n=0;
-  RENT_ROWS.forEach((x,i)=>{const c=document.getElementById('ri-chk-'+i);if(c&&c.checked){n++;if(x.dir==='IN')inn+=x.amt;else out+=x.amt;}});
-  document.getElementById('rent-import-total').textContent=`${n} rows ticked · paid ${fmtSGD(out)} · refunds ${fmtSGD(inn)}`;
+  let out=0,inn=0,n=0,fix=0;
+  RENT_ROWS.forEach((x,i)=>{const c=document.getElementById('ri-chk-'+i);if(c&&c.checked){const st=RENT_STATE[i]||{};if(st.mode==='fix'){fix++;return;}n++;if(x.dir==='IN')inn+=x.amt;else out+=x.amt;}});
+  document.getElementById('rent-import-total').textContent=`${n} new rows · paid ${fmtSGD(out)} · refunds ${fmtSGD(inn)}`+(fix?` · ${fix} existing rows to correct`:'');
 }
 function doRentImport(){
-  const add=[];
+  const add=[],fixes=[];
   for(let i=0;i<RENT_ROWS.length;i++){
     const c=document.getElementById('ri-chk-'+i);
     if(!c||!c.checked)continue;
     const date=document.getElementById('ri-date-'+i).value;
     if(!date){alert('Row '+(i+1)+' is ticked but has no date: '+RENT_ROWS[i].remark);return;}
-    add.push(Object.assign({id:uid()},rentCandidate(RENT_ROWS[i],date)));
+    const st=RENT_STATE[i]||{mode:'new'};
+    if(st.mode==='fix'&&st.ex){fixes.push([st.ex,rentCandidate(RENT_ROWS[i],st.ex.date)]);}
+    else add.push(Object.assign({id:uid()},rentCandidate(RENT_ROWS[i],date)));
   }
-  if(!add.length){alert('Nothing ticked.');return;}
+  if(!add.length&&!fixes.length){alert('Nothing ticked.');return;}
+  fixes.forEach(([ex,c])=>{ex.fromAcct=c.fromAcct;ex.toAcct=c.toAcct;});
   db.transfers.push(...add);
   save();closeModal('modal-rent');renderDashboard();renderTransfers();
-  alert(add.length+' rent entries added.');
+  alert(add.length+' rent entries added, '+fixes.length+' corrected.');
 }
 
 // ===== Loans given (money lent out, repaid monthly) =====
