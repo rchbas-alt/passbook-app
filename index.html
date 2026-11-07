@@ -1784,23 +1784,23 @@ function detectDbsIppSeries(){
     };
   });
 }
-function renderIppPlans(){
-  const box=document.getElementById('ipp-plans-list');
-  if(!box)return;
-  const series=[...detectOcbcIppSeries(),...detectDbsIppSeries()].sort((a,b)=>b.lastDate.localeCompare(a.lastDate));
-  if(!series.length){
-    box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No IPP instalment plans detected yet — they appear automatically once card statement lines with an instalment tag are imported.</div>';
-    return;
-  }
-  box.innerHTML='<div class="plan-cards">'+series.map(s=>{
-    const rateNote=s.annualRatePct!=null?` · ~${s.annualRatePct.toFixed(1)}% p.a. (estimated)`:(s.bank==='DBS'?' · 0%':'');
-    const principalLeftStr=s.principalLeft!=null?fmtSGD(s.principalLeft):'—';
-    const interestLeftStr=s.interestLeft!=null?fmtSGD(s.interestLeft):'—';
-    const totalPrincipal=s.principalLeft!=null?s.principalPaid+s.principalLeft:null;
-    const totalInterest=s.interestLeft!=null?s.interestPaid+s.interestLeft:null;
-    return`<div class="ledger-cards" style="margin-bottom:8px">
+// A plan is a bank LOAN (has interest) if it's OCBC cash-on-instalments, or a DBS "IL (nnM) x.xx%PA" instalment loan.
+// Everything else is a merchant instalment PURCHASE (0%).
+function isIppLoan(s){
+  if(s.bank==='OCBC')return true;
+  return /(^|\s)IL\s*\(\s*\d+\s*M\s*\)/i.test(s.label||'')||/\d+(?:\.\d+)?\s*%\s*PA/i.test(s.label||'');
+}
+function ippCardHtml(s,loan){
+  const done=s.leftMonths===0;
+  const rateNote=s.annualRatePct!=null?` · ~${s.annualRatePct.toFixed(1)}% p.a. (estimated)`:(loan?'':' · 0%');
+  const principalLeftStr=s.principalLeft!=null?fmtSGD(s.principalLeft):'—';
+  const interestLeftStr=s.interestLeft!=null?fmtSGD(s.interestLeft):'—';
+  const totalPrincipal=s.principalLeft!=null?s.principalPaid+s.principalLeft:null;
+  const totalInterest=s.interestLeft!=null?s.interestPaid+s.interestLeft:null;
+  const doneTag=done?' <span style="font-weight:400">· completed</span>':'';
+  return`<div class="ledger-cards" style="margin-bottom:8px${done?';opacity:.6':''}">
     <div class="lcard">
-      <div class="lcard-label">${s.bank} · ${s.label} <span style="font-weight:400">(${s.tenure} mo · ~${fmtSGD(s.monthlyAmount)}/mo${rateNote})</span></div>
+      <div class="lcard-label">${s.bank} · ${s.label} <span style="font-weight:400">(${s.tenure} mo · ~${fmtSGD(s.monthlyAmount)}/mo${rateNote})</span>${doneTag}</div>
       <div class="lcard-value">${s.leftMonths} mo left</div>
       <div class="lcard-sub">${s.paidMonths} / ${s.totalMonths} months paid</div>
     </div>
@@ -1808,14 +1808,28 @@ function renderIppPlans(){
       <div class="lcard-label">Principal left</div>
       <div class="lcard-value">${principalLeftStr}</div>
       <div class="lcard-sub">paid ${fmtSGD(s.principalPaid)}${totalPrincipal!=null?' of '+fmtSGD(totalPrincipal):''}</div>
-    </div>
+    </div>${loan?`
     <div class="lcard">
       <div class="lcard-label">Interest left</div>
       <div class="lcard-value">${interestLeftStr}</div>
       <div class="lcard-sub">paid ${fmtSGD(s.interestPaid)}${totalInterest!=null?' of '+fmtSGD(totalInterest):''}</div>
-    </div>
+    </div>`:''}
   </div>`;
-  }).join('')+'</div>';
+}
+function renderIppPlans(){
+  const box=document.getElementById('ipp-plans-list');
+  if(!box)return;
+  const series=[...detectOcbcIppSeries(),...detectDbsIppSeries()];
+  if(!series.length){
+    box.innerHTML='<div style="padding:14px 2px;color:var(--ink-soft);font-size:12px">No IPP instalment plans detected yet — they appear automatically once card statement lines with an instalment tag are imported.</div>';
+    return;
+  }
+  // active plans first (latest payment first), completed plans after
+  const order=(a,b)=>((a.leftMonths===0)-(b.leftMonths===0))||b.lastDate.localeCompare(a.lastDate);
+  const loans=series.filter(isIppLoan).sort(order);
+  const purchases=series.filter(s=>!isIppLoan(s)).sort(order);
+  const group=(title,list,loan)=>list.length?`<div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 6px">${title}</div><div class="plan-cards">${list.map(s=>ippCardHtml(s,loan)).join('')}</div>`:'';
+  box.innerHTML=group('Bank loans (with interest)',loans,true)+group('Instalment purchases (0%)',purchases,false);
 }
 
 function fmtForeign(n,ccy){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy}
