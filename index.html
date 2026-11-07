@@ -1828,8 +1828,17 @@ function renderIppPlans(){
   const order=(a,b)=>((a.leftMonths===0)-(b.leftMonths===0))||b.lastDate.localeCompare(a.lastDate);
   const loans=series.filter(isIppLoan).sort(order);
   const purchases=series.filter(s=>!isIppLoan(s)).sort(order);
-  const group=(title,list,loan)=>list.length?`<div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 6px">${title}</div><div class="plan-cards">${list.map(s=>ippCardHtml(s,loan)).join('')}</div>`:'';
-  box.innerHTML=group('Bank loans (with interest)',loans,true)+group('Instalment purchases (0%)',purchases,false);
+  // Completed plans are tucked into a collapsed "Completed (n)" row; open/closed state survives re-renders.
+  window._ippOpen=window._ippOpen||{};
+  const group=(key,title,list,loan)=>{
+    if(!list.length)return'';
+    const active=list.filter(s=>s.leftMonths>0),done=list.filter(s=>s.leftMonths===0);
+    const hd=`<div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 6px">${title}</div>`;
+    const act=active.length?`<div class="plan-cards">${active.map(s=>ippCardHtml(s,loan)).join('')}</div>`:'';
+    const dn=done.length?`<details ${window._ippOpen[key]?'open':''} ontoggle="window._ippOpen['${key}']=this.open" style="margin-bottom:8px"><summary style="cursor:pointer;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);padding:6px 2px">Completed (${done.length}) — click to show history</summary><div class="plan-cards" style="margin-top:6px">${done.map(s=>ippCardHtml(s,loan)).join('')}</div></details>`:'';
+    return hd+act+dn;
+  };
+  box.innerHTML=group('loans','Bank loans (with interest)',loans,true)+group('purchases','Instalment purchases (0%)',purchases,false);
 }
 
 function fmtForeign(n,ccy){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy}
