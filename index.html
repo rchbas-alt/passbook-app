@@ -2034,8 +2034,9 @@ function renderBalances(){
     groups.push({label:name,names:[name],ccy,note:''});
   });
   const rows=groups.map(g=>{
-    // Skip entries with no relation to the group currency (e.g. a TRY send to Erkan unrelated to Ilkim)
-    const txs=people.filter(t=>g.names.includes(t.name)).filter(t=>!(t.ccy!==g.ccy&&(t.eurEquiv===undefined||t.eurEquiv===null||t.eurEquiv==='')));
+    // Money received back always counts, whatever its currency. The only thing skipped is a SEND, inside the
+    // shared Erkan/Ilkim ledger, that is in another currency with no EUR equivalent (e.g. a TRY send to Erkan unrelated to Ilkim).
+    const txs=people.filter(t=>g.names.includes(t.name)).filter(t=>!(g.names.length>1&&t.dir==='OUT'&&t.ccy!==g.ccy&&(t.eurEquiv===undefined||t.eurEquiv===null||t.eurEquiv==='')));
     let sent=0,recv=0,sentSgd=0,recvSgd=0,approx=0,missing=0;
     txs.forEach(t=>{
       const a=ledgerAmt(t,g.ccy);
