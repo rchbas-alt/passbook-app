@@ -1834,6 +1834,8 @@ function renderBalances(){
     const txs=people.filter(t=>g.names.includes(t.name));
     let sent=0,recv=0,sentSgd=0,recvSgd=0,approx=0,missing=0;
     txs.forEach(t=>{
+      // Skip entries with no relation to group currency (e.g. TRY send to Erkan unrelated to Ilkim)
+      if(t.ccy!==g.ccy && (t.eurEquiv===undefined||t.eurEquiv===null||t.eurEquiv==='')) return;
       const a=ledgerAmt(t,g.ccy);
       if(!a.exact){approx++;if(t.ccy==='HUF'&&g.ccy==='EUR')missing++;}
       if(t.dir==='OUT'){sent+=a.v;sentSgd+=totalSGD(t);}else{recv+=a.v;recvSgd+=sgdEquiv(t);}
