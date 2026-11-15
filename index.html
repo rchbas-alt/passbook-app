@@ -854,6 +854,7 @@ function loadLocalOrSeed(){
 
 // Save to localStorage immediately (fast), then push to GitHub (sync)
 async function save(){
+  _rentOnlyCache=null;
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){}
   if(isSyncing) return;
   isSyncing = true;
@@ -1990,8 +1991,19 @@ function deleteRate(id){db.rates=db.rates.filter(r=>r.id!==id);save();renderFX()
 function normName(n){return (n||'').replace(/İ/g,'I').replace(/ı/g,'i').trim();}
 function normalizeNames(){db.transfers.forEach(t=>{const n=normName(t.name);if(n!==t.name)t.name=n;});}
 const INSTITUTION_NAMES=['IRAS','MBS'];
-const INSTITUTION_CATS=['Salary','Tax','Income Tax','Rent'];
-function isInstitution(t){return INSTITUTION_NAMES.includes(t.name)||INSTITUTION_CATS.includes(t.category)||CARD_PLATFORMS.includes(t.platform);}
+const INSTITUTION_CATS=['Salary','Tax','Income Tax'];
+// 'Rent' counts as an institution payment only for rent-only payees (landlords/agents). People who also have
+// other entries (e.g. Ilkim, Clarice) stay people, so their rent sends still count in their balances.
+let _rentOnlyCache=null;
+function rentOnlyNames(){
+  if(_rentOnlyCache&&_rentOnlyCache.arr===db.transfers&&_rentOnlyCache.len===db.transfers.length)return _rentOnlyCache.set;
+  const rent=new Set(),other=new Set();
+  db.transfers.forEach(t=>{(t.category==='Rent'?rent:other).add(t.name)});
+  const set=new Set([...rent].filter(n=>!other.has(n)));
+  _rentOnlyCache={arr:db.transfers,len:db.transfers.length,set};
+  return set;
+}
+function isInstitution(t){return INSTITUTION_NAMES.includes(t.name)||INSTITUTION_CATS.includes(t.category)||(t.category==='Rent'&&rentOnlyNames().has(t.name))||CARD_PLATFORMS.includes(t.platform);}
 function isLendTx(t){return t.category==='Loan Given'||t.category==='Loan Repayment';}
 function isPersonTx(t){return t.internal!=='Y'&&!isInstitution(t)&&!isLendTx(t);}
 // Ledger groups: people whose sends and repayments are tracked as one balance.
@@ -2022,11 +2034,10 @@ function renderBalances(){
     groups.push({label:name,names:[name],ccy,note:''});
   });
   const rows=groups.map(g=>{
-    const txs=people.filter(t=>g.names.includes(t.name));
+    // Skip entries with no relation to the group currency (e.g. a TRY send to Erkan unrelated to Ilkim)
+    const txs=people.filter(t=>g.names.includes(t.name)).filter(t=>!(t.ccy!==g.ccy&&(t.eurEquiv===undefined||t.eurEquiv===null||t.eurEquiv==='')));
     let sent=0,recv=0,sentSgd=0,recvSgd=0,approx=0,missing=0;
     txs.forEach(t=>{
-      // Skip entries with no relation to group currency (e.g. TRY send to Erkan unrelated to Ilkim)
-      if(t.ccy!==g.ccy && (t.eurEquiv===undefined||t.eurEquiv===null||t.eurEquiv==='')) return;
       const a=ledgerAmt(t,g.ccy);
       if(!a.exact){approx++;if(t.ccy==='HUF'&&g.ccy==='EUR')missing++;}
       if(t.dir==='OUT'){sent+=a.v;sentSgd+=totalSGD(t);}else{recv+=a.v;recvSgd+=sgdEquiv(t);}
